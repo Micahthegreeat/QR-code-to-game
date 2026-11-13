@@ -1,12 +1,14 @@
-# Example how use this file 
-# python Backend/main.py Backend/html-games/ huffman-tree-tokens.json
+
+# Examples:
+# python Backend/main.py Backend/html-games/ Backend/trees/0.json
+# python Backend/main.py Backend/html-text/ Backend/trees/1.json
+
 import argparse
 import subprocess
 import sys
 from pathlib import Path
 
 
-# Directory containing main.py
 BASE_DIR = Path(__file__).resolve().parent
 
 HTML_DIR = BASE_DIR / "html-games"
@@ -58,18 +60,39 @@ def encode_html(filename, tree_file):
             f"Huffman tree not found: {tree_path}"
         )
 
+    # Automatically determine tree ID from filename
+    try:
+        tree_id = int(tree_path.stem)
+    except ValueError:
+        raise ValueError(
+            f"Tree filename must be a number, such as 0.json: {tree_path.name}"
+        )
+
+    if tree_id < 0:
+        raise ValueError("Tree ID cannot be negative")
+
     # Create output directories
     CONDENSED_DIR.mkdir(parents=True, exist_ok=True)
-    ENCODED_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Keep each tree's outputs separate
+    tree_output_dir = ENCODED_DIR / str(tree_id)
+    tree_output_dir.mkdir(parents=True, exist_ok=True)
 
     # Output filenames
     condensed_path = CONDENSED_DIR / input_path.name
-    encoded_path = ENCODED_DIR / (
+    encoded_path = tree_output_dir / (
         input_path.stem + ".huff"
+    )
+    base39_path = tree_output_dir / (
+        input_path.stem + ".txt"
+    )
+    qr_path = tree_output_dir / (
+        input_path.stem + ".png"
     )
 
     print(f"Input HTML: {input_path}")
     print(f"Huffman tree: {tree_path}")
+    print(f"Tree ID: {tree_id}")
 
     # Step 1: Minify HTML, CSS, and JavaScript
     run_script(
@@ -89,22 +112,23 @@ def encode_html(filename, tree_file):
         tree_path
     )
 
-    # Step 3: encode to html string
+    # Step 3: Convert compressed bytes to Base-39
     run_script(
         "base39.py",
         encoded_path,
         "-o",
-        ENCODED_DIR / (input_path.stem + ".txt")
+        base39_path
     )
 
     # Step 4: Generate QR code
-    base39_path = ENCODED_DIR / (input_path.stem + ".txt")
+    base39_data = base39_path.read_text(
+        encoding="ascii"
+    ).strip()
 
-    base39_data = base39_path.read_text(encoding="ascii").strip()
-
-    url = "HTTPS://QR.MICAHKNOX.COM/0/" + base39_data
-
-    qr_path = ENCODED_DIR / (input_path.stem + ".png")
+    url = (
+        f"HTTPS://QR.MICAHKNOX.COM/"
+        f"{tree_id}/{base39_data}"
+    )
 
     run_script(
         "qr-generate.py",
@@ -120,6 +144,7 @@ def encode_html(filename, tree_file):
 
     print("\nENCODING COMPLETE")
     print("-" * 45)
+    print(f"Tree ID:    {tree_id}")
     print(f"Original:   {original_size:,} bytes")
     print(f"Condensed:  {condensed_size:,} bytes")
     print(f"Encoded:    {encoded_size:,} bytes")
@@ -130,22 +155,23 @@ def encode_html(filename, tree_file):
         )
         print(f"Reduction:  {reduction:.2f}%")
 
-    print(f"\nOutput: {encoded_path}")
+    print(f"\nQR URL: {url}")
+    print(f"Output: {qr_path}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Minify and Huffman encode an HTML game"
+        description="Minify and Huffman encode HTML using a selected tree"
     )
 
     parser.add_argument(
         "input",
-        help="Original HTML filename or path"
+        help="Original HTML filename or directory"
     )
 
     parser.add_argument(
         "tree",
-        help="Huffman tree JSON filename or path"
+        help="Huffman tree JSON filename or path (e.g. trees/0.json)"
     )
 
     args = parser.parse_args()
@@ -157,14 +183,16 @@ def main():
             input_path = HTML_DIR / args.input
 
         if input_path.is_dir():
-            # Encode every HTML file in the folder
             for file in sorted(input_path.rglob("*.html")):
                 encode_html(file, args.tree)
         else:
-            # Encode a single file
             encode_html(input_path, args.tree)
 
-    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+    except (
+        FileNotFoundError,
+        subprocess.CalledProcessError,
+        ValueError
+    ) as e:
         print(f"\nERROR: {e}", file=sys.stderr)
         sys.exit(1)
 

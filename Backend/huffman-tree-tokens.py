@@ -4,6 +4,8 @@ import json
 from collections import Counter
 from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent
+
 class Node:
     def __init__(self, freq, symbol=None, left=None, right=None):
         self.freq, self.symbol, self.left, self.right = freq, symbol, left, right
@@ -82,14 +84,19 @@ def estimate(files, tree, trie=None):
 def main():
     parser = argparse.ArgumentParser(description='Compare byte and token Huffman trees')
     parser.add_argument('input', help='Folder of HTML files')
-    parser.add_argument('-o', '--output', default='huffman-tree-tokens.json')
-    parser.add_argument('--baseline', default='huffman-tree-bytes.json')
+    parser.add_argument('-o', '--output', default='trees/0.json')
+    parser.add_argument('--baseline', default='trees/baseline.json')
     parser.add_argument('--min-length', type=int, default=3)
     parser.add_argument('--max-length', type=int, default=16)
     parser.add_argument('--min-count', type=int, default=4)
     parser.add_argument('--max-tokens', type=int, default=128)
     args = parser.parse_args()
-    paths = sorted(p for p in Path(args.input).rglob('*') if p.is_file())
+    input_path = Path(args.input)
+
+    if not input_path.exists():
+        input_path = BASE_DIR / input_path
+
+    paths = sorted(p for p in input_path.rglob('*') if p.is_file())
     if not paths:
         parser.error('No input files found')
     files = [p.read_bytes() for p in paths]
@@ -110,8 +117,15 @@ def main():
     token_tree = build_tree(token_freq)
     for filename, tree in [(args.baseline, base_tree), (args.output, token_tree)]:
         path = Path(filename)
+
+        if not path.is_absolute():
+            path = BASE_DIR / path
+
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(tree_json(tree), separators=(',', ':')), encoding='utf-8')
+        path.write_text(
+            json.dumps(tree_json(tree), separators=(",", ":")),
+            encoding="utf-8"
+        )
     old = estimate(files, base_tree)
     new = estimate(files, token_tree, trie)
     print(f'Files: {len(files)} | Tokens: {len(active)}')
@@ -120,8 +134,8 @@ def main():
         print(f'{path.name[:28]:28} {len(data):8,} {a:8,} {b:8,} {a-b:+8,}')
     a, b = sum(old), sum(new)
     print(f'{"TOTAL":28} {sum(map(len, files)):8,} {a:8,} {b:8,} {a-b:+8,} ({(a-b)/a*100:+.2f}%)')
-    old_tree_size = Path(args.baseline).stat().st_size
-    new_tree_size = Path(args.output).stat().st_size
+    old_tree_size = (BASE_DIR / args.baseline).stat().st_size
+    new_tree_size = (BASE_DIR / args.output).stat().st_size
     print(f'Tree JSON sizes: {old_tree_size:,} vs {new_tree_size:,} bytes')
     print(f'Including one copy of shared tree: {a+old_tree_size:,} vs {b+new_tree_size:,} bytes')
     print('Note: estimated .huff bytes; actual QR Base39 length depends on binary values.')

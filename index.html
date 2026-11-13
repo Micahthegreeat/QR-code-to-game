@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QR Game Decoder</title>
+<title>QR HTML Decoder</title>
 
 <style>
     * {
@@ -129,7 +129,7 @@
 <body>
 
 <div id="loading">
-    <h1>QR GAME DECODER</h1>
+    <h1>QR HTML DECODER</h1>
 
     <div class="decoder">
         <div class="icon">▣</div>
@@ -148,7 +148,7 @@
     </div>
 
     <div id="home">
-        No game data found in URL.
+        No encoded page found in URL.
     </div>
 </div>
 
@@ -167,14 +167,14 @@
 
 // Location of your shared Huffman tree.
 // Relative to the website root, not the URL path.
-const HUFFMAN_TREE_URL = "/huffman-tree-tokens.json";
+const TREE_DIRECTORY = "/Backend/trees/";
 
 // The URL format is:
 // https://qr.micahknox.com/0/BASE39_DATA
 //
 // Also works with:
 // http://localhost:8000/0/BASE39_DATA
-const URL_PREFIX = "/0/";
+// Tree ID is read from the URL, e.g. /0/PAYLOAD or /1/PAYLOAD.
 
 // Base-39 alphabet used by your Python script
 const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ*+-";
@@ -287,7 +287,7 @@ function decompressHuffman(data, tree) {
     const output = new Uint8Array(originalLength);
     if (originalLength === 0) return output;
 
-    const encoder = new TextEncoder();
+    // Tree strings store raw bytes as Latin-1, not UTF-8.
     const tokenCache = new Map();
 
     function tokenBytes(symbol) {
@@ -297,7 +297,15 @@ function decompressHuffman(data, tree) {
             return Uint8Array.of(symbol);
         }
         if (typeof symbol === "string" && symbol.length) {
-            if (!tokenCache.has(symbol)) tokenCache.set(symbol, encoder.encode(symbol));
+            if (!tokenCache.has(symbol)) {
+                const bytes = new Uint8Array(symbol.length);
+                for (let i = 0; i < symbol.length; i++) {
+                    const value = symbol.charCodeAt(i);
+                    if (value > 255) throw new Error("Invalid Latin-1 Huffman token");
+                    bytes[i] = value;
+                }
+                tokenCache.set(symbol, bytes);
+            }
             return tokenCache.get(symbol);
         }
         throw new Error("Invalid Huffman token");
@@ -347,23 +355,17 @@ function decompressHuffman(data, tree) {
 
 async function loadGame() {
     try {
-        // Read Base-39 payload from URL.
-        const path = window.location.pathname;
-
-        if (!path.startsWith(URL_PREFIX)) {
-            setProgress(0, "Waiting for game URL");
-            document.getElementById("home").style.display =
-                "block";
+        // URL format: /TREE_ID/BASE39_PAYLOAD
+        const match = window.location.pathname.match(/^\/(0|[1-9]\d*)\/([0-9A-Z*+\-]+)\/?$/);
+        if (!match) {
+            setProgress(0, "Waiting for a valid encoded URL");
+            document.getElementById("home").style.display = "block";
             return;
         }
-
-        const encoded = decodeURIComponent(
-            path.slice(URL_PREFIX.length)
-        );
-
-        if (!encoded) {
-            throw new Error("No game data provided");
-        }
+        const treeId = match[1];
+        const encoded = match[2];
+        const treeUrl = TREE_DIRECTORY + treeId + ".json";
+        log("Using Huffman tree " + treeId);
 
         setProgress(10, "Game data detected");
         log("Payload length: " + encoded.length + " characters");
@@ -372,9 +374,9 @@ async function loadGame() {
 
         // Load shared Huffman tree.
         setProgress(20, "Downloading Huffman tree...");
-        log("Fetching " + HUFFMAN_TREE_URL);
+        log("Fetching " + treeUrl);
 
-        const response = await fetch(HUFFMAN_TREE_URL);
+        const response = await fetch(treeUrl);
 
         if (!response.ok) {
             throw new Error(
@@ -382,7 +384,16 @@ async function loadGame() {
             );
         }
 
-        const tree = await response.json();
+        const treeText = await response.text();
+        if (treeText.trimStart().startsWith("<")) {
+            throw new Error("Tree " + treeId + " not found: server returned HTML instead of JSON (" + treeUrl + ")");
+        }
+        let tree;
+        try {
+            tree = JSON.parse(treeText);
+        } catch (error) {
+            throw new Error("Invalid JSON for tree " + treeId + ": " + error.message);
+        }
 
         log("Huffman tree loaded");
 

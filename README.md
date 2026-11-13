@@ -1,60 +1,55 @@
 # QR Code to Game
 
-**Play entire HTML games from QR codes — without hosting each game as a separate webpage.**
+**Play entire standalone HTML games from QR codes without hosting each game as a separate webpage.**
 
-[**Open the QR game decoder**](https://qr.micahknox.com/)
+[Open the QR decoder](https://qr.micahknox.com/)
 
-QR Code to Game compresses standalone HTML/CSS/JavaScript games, converts the compressed bytes into QR-friendly text, and places that text directly in a URL. When someone scans the QR code, the website reads the data from the URL, decompresses the game in their browser, and launches it.
+QR Code to Game minifies a self-contained HTML/CSS/JavaScript page, compresses it using a shared Huffman tree, converts the result to QR-friendly Base-39 text, and embeds that text directly in a URL. Scanning the QR code opens a decoder that retrieves the selected tree, reconstructs the page, and runs it in a sandboxed iframe.
 
-The game is **stored in the QR code itself**; the website supplies the decoder and shared Huffman tree. A connection to the site is required to load the decoder and tree.
+**The page data is stored in the QR code itself.** The decoder and Huffman trees are hosted separately, so an internet connection is required to load them.
 
 ## Try the games
 
-**Scan one of these QR codes with your phone** (or open the image and scan it from another device). Each code links to the hosted decoder with a game embedded in its URL.
+Scan a QR code with your phone, or open the image on another device and scan it. The examples below use **tree 0**, trained for games.
 
 | Flappy Bird | Snake | Pong |
 |:---:|:---:|:---:|
-| ![QR code for Flappy Bird](Backend/html-games-encoded/flappy-bird.png) | ![QR code for Snake](Backend/html-games-encoded/snake.png) | ![QR code for Pong](Backend/html-games-encoded/pong.png) |
+| ![Flappy Bird QR code](Backend/html-games-encoded/0/flappy-bird.png) | ![Snake QR code](Backend/html-games-encoded/0/snake.png) | ![Pong QR code](Backend/html-games-encoded/0/pong.png) |
 
 | 2048 | Breakout | Minesweeper |
 |:---:|:---:|:---:|
-| ![QR code for 2048](Backend/html-games-encoded/2048.png) | ![QR code for Breakout](Backend/html-games-encoded/breakout.png) | ![QR code for Minesweeper](Backend/html-games-encoded/minesweeper.png) |
+| ![2048 QR code](Backend/html-games-encoded/0/2048.png) | ![Breakout QR code](Backend/html-games-encoded/0/breakout.png) | ![Minesweeper QR code](Backend/html-games-encoded/0/minesweeper.png) |
 
-More QR codes are available in [`Backend/html-games-encoded/`](Backend/html-games-encoded/), including Dino, Doodle, Invaders, and Tower Defence.
-
+See [`Backend/html-games-encoded/0/`](Backend/html-games-encoded/0/) for other generated game QR codes. Images render on GitHub only when the corresponding PNG files are committed at these paths.
 
 ## How it works
 
 ```text
-Standalone HTML game
-        │
-        ▼
-  HTML/CSS/JS minification
-        │
-        ▼
-  Huffman compression
-  (bytes or repeated-string tokens)
-        │
-        ▼
-  Base-39 encoding
-        │
-        ▼
-  QR code containing a URL
-        │
-        ▼
-  https://qr.micahknox.com/0/<BASE39_DATA>
-        │
-        ▼
-  Browser fetches shared Huffman tree
-        │
-        ▼
-  Base-39 → Huffman → HTML
-        │
-        ▼
-  Game runs in an iframe
+Standalone HTML page
+        |
+        v
+HTML / CSS / JavaScript minification
+        |
+        v
+Huffman compression using a selected shared tree
+        |
+        v
+Base-39 encoding
+        |
+        v
+QR code containing https://qr.micahknox.com/{TREE_ID}/{BASE39_DATA}
+        |
+        v
+Browser reads TREE_ID and fetches /Backend/trees/{TREE_ID}.json
+        |
+        v
+Base-39 decode -> Huffman decode -> HTML
+        |
+        v
+Page runs inside a sandboxed iframe
 ```
 
-The compressed `.huff` format begins with a **4-byte big-endian uncompressed byte length**, followed by Huffman bits packed most-significant-bit first. The length tells the decoder when to stop and ignore padding bits.
+The `.huff` format contains a **4-byte big-endian original byte length** followed by MSB-first Huffman bits, padded to a whole number of bytes. The length lets the decoder ignore trailing padding bits.
 
 ### Compression methods
 
@@ -68,65 +63,80 @@ The shared Huffman tree lives outside the QR code, helping keep the encoded URL 
 
 ```text
 QR-code-to-game/
-├── index.html                 # Browser decoder and game player
-├── server.py                  # Local development server with /0/ fallback
-├── wrangler.jsonc             # Cloudflare Workers static-asset settings (if committed)
+├── index.html                    # Browser decoder; selects tree from URL
+├── server.py                     # Local server with encoded-URL fallback
+├── wrangler.jsonc                # Cloudflare static asset configuration, if present
 └── Backend/
-    ├── main.py                # Encoding pipeline orchestrator
-    ├── html-encode.py         # HTML minifier
-    ├── huffman-tree.py        # Original byte-based tree generator
-    ├── huffman-tree-tokens.py # Token tree generator/comparison (if added)
-    ├── huffman.py             # Huffman encoder/decoder
-    ├── base39.py              # Binary ↔ Base-39 conversion
-    ├── qr-generate.py         # QR image generator
-    ├── huffman-tree.json      # Shared decoding tree
-    ├── html-games/            # Source HTML games
-    ├── html-games-condensed/  # Minified games
-    ├── html-games-encoded/    # .huff, .txt, and .png outputs
-    └── html-games-decoded/    # Optional round-trip verification
+    ├── main.py                   # Minify -> Huffman -> Base-39 -> QR pipeline
+    ├── html-encode.py            # HTML/CSS/JS minifier
+    ├── huffman-tree.py           # Original byte-based tree generator
+    ├── huffman-tree-tokens.py    # Token tree generator and size comparison
+    ├── huffman.py                # Huffman encoder and decoder
+    ├── base39.py                 # Binary / Base-39 conversion
+    ├── qr-generate.py            # QR image generator
+    ├── trees/
+    │   ├── 0.json                # Game-optimized tree
+    │   └── baseline.json         # Optional byte-only comparison tree
+    ├── html-games/               # Original HTML games
+    ├── html-games-condensed/     # Minified HTML
+    └── html-games-encoded/
+        └── 0/                    # Outputs for tree 0
+            ├── snake.huff
+            ├── snake.txt
+            └── snake.png
 ```
 
-## Generate a QR code
+## Generate QR codes
 
-Requirements: Python 3 and the Python packages used by the project's minifier and QR generator (notably `minify-html` and `qrcode[pil]`).
+Requires Python 3 and the dependencies used by the minifier and QR generator:
 
 ```bash
 python -m pip install minify-html "qrcode[pil]"
 ```
 
-Run these commands from `Backend/`.
+The examples below run from the **repository root**.
 
-**1. Generate a shared byte-based Huffman tree:**
+### 1. Generate a token Huffman tree
 
-```bash
-python huffman-tree.py html-games-condensed -o huffman-tree.json
-```
-
-**2. Encode one game:**
+Minify the training pages first if needed. Then generate tree 0 from the minified game files:
 
 ```bash
-python main.py flappy-bird.html huffman-tree.json
+python Backend/huffman-tree-tokens.py html-games-condensed -o trees/0.json
 ```
 
-**3. Or encode a folder of games:**
+The generator resolves the input folder relative to `Backend/` if it does not exist relative to your current directory. It saves `Backend/trees/0.json` and the byte-only comparison tree at `Backend/trees/baseline.json`.
+
+For a different training corpus and tree ID, for example text-heavy HTML:
 
 ```bash
-python main.py html-games huffman-tree.json
+python Backend/huffman-tree-tokens.py html-text-condensed -o trees/1.json
 ```
 
-The pipeline minifies each game, compresses it into a `.huff` file, converts it into a Base-39 `.txt` payload, and generates a `.png` QR code in `html-games-encoded/`.
+The generator reports estimated compressed sizes for byte-only and token-based Huffman encoding, including the shared tree size. These are estimates, not guaranteed QR-code lengths.
 
-### Compare token Huffman against byte Huffman
-
-If you have added `huffman-tree-tokens.py`:
+### 2. Encode one HTML page
 
 ```bash
-python huffman-tree-tokens.py html-games-condensed \
-  -o huffman-tree-tokens.json \
-  --baseline huffman-tree-bytes.json
+python Backend/main.py Backend/html-games/snake.html Backend/trees/0.json
 ```
 
-This prints per-game estimates and total savings, including the size of the shared tree. **Important:** The token generator and the Python/browser decoders must agree on how string tokens map to bytes. In particular, the current token generator uses Latin-1 to represent arbitrary byte sequences, while an encoder that interprets strings as UTF-8 will not round-trip all tokens correctly. Resolve that mismatch and verify a full encode/decode round trip before publishing token-encoded QR codes.
+### 3. Or encode an entire folder
+
+```bash
+python Backend/main.py Backend/html-games/ Backend/trees/0.json
+```
+
+`main.py` automatically reads the tree ID from `0.json`, uses that tree for compression, and creates QR URLs starting with `/0/`. Outputs go to `Backend/html-games-encoded/0/` as `.huff`, `.txt`, and `.png` files.
+
+To use another tree:
+
+```bash
+python Backend/main.py Backend/html-text/ Backend/trees/1.json
+```
+
+That produces `/1/` URLs and writes files under `Backend/html-games-encoded/1/`.
+
+**Important:** Tree filenames must be numeric (for example `0.json` or `1.json`). The encoder and browser must agree on the token-to-byte representation. Before publishing a new tree, verify that a file survives a complete Huffman encode/decode round trip unchanged.
 
 ## Run locally
 
@@ -136,21 +146,30 @@ From the repository root:
 python server.py
 ```
 
-Then visit `http://localhost:8000/`. A generated game URL can also be tested by replacing `https://qr.micahknox.com` with `http://localhost:8000` while preserving the `/0/<BASE39_DATA>` path.
+Open [http://localhost:8000/](http://localhost:8000/). To test a generated URL locally, replace `https://qr.micahknox.com` with `http://localhost:8000` while keeping the `/{TREE_ID}/{BASE39_DATA}` path unchanged.
 
-The custom local server is needed because a plain `python -m http.server` would otherwise return 404 for the encoded `/0/...` paths.
+The local server needs to serve `index.html` for encoded paths such as `/0/...` and `/1/...`, while serving actual JSON files from `/Backend/trees/`.
 
 ## Cloudflare deployment
 
-This project is deployed as a **Cloudflare Worker with static assets**. The Worker should publish the repository root (the directory containing `index.html`) and use a single-page-application fallback so `/0/...` URLs serve the decoder.
+The site uses **Cloudflare Workers static assets**. Publish the repository root so that both `index.html` and `Backend/trees/*.json` are accessible. Configure SPA fallback so URLs such as `/0/...` and `/1/...` load the decoder without replacing the URL path.
+
+Check a tree directly before testing a QR code:
+
+```text
+https://qr.micahknox.com/Backend/trees/0.json
+```
+
+It should return JSON, **not** the decoder's HTML. If the browser reports `Unexpected token '<'` while parsing a tree, the server likely returned an HTML fallback because the JSON file was missing or the path was wrong.
 
 ## Limits and compatibility
 
-- QR codes have finite capacity; very large games may not fit. The QR generator uses QR alphanumeric mode with low error correction to maximize available payload space.
-- The decoder and encoded game **must use the same Huffman tree**. Replacing the tree can break previously printed QR codes.
-- Games should be self-contained HTML files. External assets or browser storage requirements may not work inside the sandboxed iframe.
-- These QR codes are meant to be opened as URLs. They are not executable games in a generic offline QR scanner.
+- QR codes have finite capacity. Large pages may not fit even after compression; the generator uses QR alphanumeric mode with low error correction to maximize payload size.
+- The tree file used for encoding must match the ID embedded in the URL. **Do not overwrite a published tree** unless you also regenerate its QR codes.
+- Token trees must use consistent Latin-1 token expansion in Python and JavaScript. The reconstructed HTML is decoded as UTF-8.
+- Pages should be self-contained. External assets, network access, and browser storage may not work as expected inside the sandboxed iframe.
+- These QR codes contain URLs and require the hosted decoder; they are not independently executable offline.
 
 ## Project goal
 
-Explore how much interactive software can fit inside a QR code using minification, shared dictionaries, Huffman coding, and compact URL encoding.
+Explore how much interactive software and other self-contained HTML content can fit into a QR code using minification, reusable compression dictionaries, Huffman coding, and compact URL encoding.

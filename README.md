@@ -142,28 +142,7 @@ The custom local server is needed because a plain `python -m http.server` would 
 
 ## Cloudflare deployment
 
-This project can be deployed as a **Cloudflare Worker with static assets**. The Worker should publish the repository root (the directory containing `index.html`) and use a single-page-application fallback so `/0/...` URLs serve the decoder.
-
-Example `wrangler.jsonc`:
-
-```json
-{
-  "name": "qr-code-to-game",
-  "compatibility_date": "2026-11-13",
-  "assets": {
-    "directory": ".",
-    "not_found_handling": "single-page-application"
-  }
-}
-```
-
-The browser decoder's tree URL must point to the deployed tree, for example:
-
-```js
-const HUFFMAN_TREE_URL = "/Backend/huffman-tree.json";
-```
-
-Avoid adding a `/0/* /index.html 200` rule in `_redirects` to this Worker configuration; it can be rejected as an infinite-loop rewrite. Make sure `https://qr.micahknox.com/Backend/huffman-tree.json` returns JSON and a `/0/...` URL loads the decoder rather than a 404.
+This project is deployed as a **Cloudflare Worker with static assets**. The Worker should publish the repository root (the directory containing `index.html`) and use a single-page-application fallback so `/0/...` URLs serve the decoder.
 
 ## Limits and compatibility
 

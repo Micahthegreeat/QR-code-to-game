@@ -1,97 +1,106 @@
 
-<!DOCTYPE html>
-<html>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<body style="margin:0;text-align:center;background:#222;color:white;font-family:Arial">
-<h3 id="info"></h3>
-<canvas id="c" width="400" height="500"
-style="width:95%;max-width:400px;background:#396b39;touch-action:none"></canvas>
-<p>Tap grass to build tower ($20)</p>
+<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#222;color:white;text-align:center;font:16px Arial">
+<div id="info"></div><div id="shop"></div>
+<button onclick="next()">Wave</button><button onclick="pause=!pause">Pause</button>
+<button onclick="speed=3-speed;this.textContent=speed+'x'">1x</button>
 <button onclick="start()">Restart</button>
+<canvas id="c" width="400" height="500" style="width:100%;height:55dvh;display:block;touch-action:none"></canvas>
+<button onclick="up(0)">Damage $25</button><button onclick="up(1)">Range $25</button>
+<button onclick="up(2)">Speed $25</button><button onclick="sell()">Sell</button>
 <script>
-const c=document.getElementById("c"),x=c.getContext("2d");
-let towers,enemies,shots,money,lives,wave,timer,spawn,dead;
-
-const path=[[0,100],[200,100],[200,300],[400,300]];
-
+const c=document.querySelector("canvas"),x=c.getContext("2d"),
+P=[[0,100],[200,100],[200,300],[400,300]],
+T=[["Fast",20,"cyan",1,15,90],["Strong",40,"red",5,65,125],["Splash",60,"violet",2,50,110],["Ice",45,"lightblue",1,35,110],["Poison",50,"lime",1,40,115]];
+let towers,enemies,money,lives,wave,spawn,tick,dead,pause,speed,active,sel,chosen=0;
+T.forEach((t,i)=>{
+ let b=document.createElement("button");
+ b.textContent=t[0]+" $"+t[1];
+ b.onclick=()=>{chosen=i;sel=null;highlight()};
+ shop.appendChild(b);
+});
+function highlight(){
+ [...shop.children].forEach((b,i)=>{
+ b.style.background=i===chosen?T[i][2]:"#ddd";
+ b.style.border=i===chosen?"3px solid white":"3px solid transparent";
+ });
+}
 function start(){
-  towers=[];enemies=[];shots=[];
-  money=100;lives=10;wave=0;
-  timer=0;spawn=0;dead=false;
+ towers=[];enemies=[];money=150;lives=10;wave=spawn=tick=0;
+ dead=pause=active=false;speed=1;sel=null;chosen=0;highlight();
+}
+function next(){if(!active&&!dead){wave++;spawn=5+wave*2+(wave%5===0);active=true}}
+function up(i){
+ if(!sel||money<25)return;
+ money-=25;
+ if(i===0)sel.d++;
+ if(i===1)sel.r+=20;
+ if(i===2)sel.f=Math.max(5,sel.f*.8);
+}
+function sell(){
+ if(sel){money+=sel.cost*.7|0;towers=towers.filter(t=>t!==sel);sel=null}
 }
 start();
-
 c.onpointerdown=e=>{
-  if(dead)return;
-  let r=c.getBoundingClientRect();
-  let a=(e.clientX-r.left)*400/r.width;
-  let b=(e.clientY-r.top)*500/r.height;
-  if(money<20)return;
-  if((Math.abs(b-100)<30&&a<230)||
-     (Math.abs(a-200)<30&&b>70&&b<330)||
-     (Math.abs(b-300)<30&&a>170))return;
-  towers.push({x:a,y:b,cool:0});
-  money-=20;
+ if(dead)return;
+ let r=c.getBoundingClientRect(),a=(e.clientX-r.left)*400/r.width,b=(e.clientY-r.top)*500/r.height;
+ sel=towers.find(t=>Math.hypot(t.x-a,t.y-b)<20);
+ if(sel)return;
+ let t=T[chosen];
+ if(money<t[1]||towers.some(q=>Math.hypot(q.x-a,q.y-b)<30))return;
+ if((Math.abs(b-100)<35&&a<235)||(Math.abs(a-200)<35&&b>65&&b<335)||(Math.abs(b-300)<35&&a>165))return;
+ towers.push({x:a,y:b,k:chosen,d:t[3],f:t[4],r:t[5],cost:t[1],cool:0});
+ money-=t[1];
 };
-
+function step(){
+ tick++;
+ if(active&&spawn&&tick%35===0){
+ let k=wave%5===0&&spawn===1?3:Math.random()*3|0,hp=k===3?100+wave*20:[3,8,18][k]+wave*2;
+ enemies.push({x:0,y:100,s:0,k,hp,max:hp,slow:0,poison:0});spawn--;
+ }
+ enemies.forEach(e=>{
+ if(e.poison>0){e.hp-=.04;e.poison--}
+ if(e.hp<=0)return;
+ let p=P[e.s+1],d=Math.hypot(p[0]-e.x,p[1]-e.y),v=[1.3,.9,.5,.35][e.k]*(e.slow-->0?.45:1);
+ if(d<=v){e.x=p[0];e.y=p[1];e.s++}
+ else{e.x+=(p[0]-e.x)/d*v;e.y+=(p[1]-e.y)/d*v}
+ if(e.s===3){e.out=true;lives-=e.k===3?3:1;if(lives<=0)dead=true}
+ });
+ towers.forEach(t=>{
+ if(t.cool-->0)return;
+ let e=enemies.find(e=>e.hp>0&&!e.out&&Math.hypot(e.x-t.x,e.y-t.y)<t.r);
+ if(!e)return;
+ (t.k===2?enemies.filter(q=>!q.out&&Math.hypot(q.x-e.x,q.y-e.y)<50):[e]).forEach(q=>{
+ q.hp-=t.d;
+ if(t.k===3)q.slow=100;
+ if(t.k===4)q.poison=150;
+ });
+ t.cool=t.f;
+ });
+ enemies=enemies.filter(e=>{
+ if(e.hp<=0&&!e.out){money+=[5,10,20,100][e.k];return false}
+ return !e.out;
+ });
+ if(active&&!spawn&&!enemies.length){active=false;money+=20+wave*5}
+}
+function draw(){
+ x.fillStyle="#396b39";x.fillRect(0,0,400,500);
+ x.strokeStyle="#b99b72";x.lineWidth=45;x.beginPath();x.moveTo(...P[0]);P.slice(1).forEach(p=>x.lineTo(...p));x.stroke();
+ towers.forEach(t=>{
+ if(t===sel){x.strokeStyle="white";x.lineWidth=2;x.beginPath();x.arc(t.x,t.y,t.r,0,7);x.stroke()}
+ x.fillStyle=T[t.k][2];x.beginPath();x.arc(t.x,t.y,14,0,7);x.fill();
+ });
+ enemies.forEach(e=>{
+ x.fillStyle=["lime","orange","darkred","black"][e.k];
+ x.beginPath();x.arc(e.x,e.y,e.k===3?22:10+e.k*3,0,7);x.fill();
+ x.fillStyle="red";x.fillRect(e.x-15,e.y-25,30,4);
+ x.fillStyle="lime";x.fillRect(e.x-15,e.y-25,30*Math.max(0,e.hp/e.max),4);
+ });
+ info.textContent=`$${money|0} | Lives: ${lives} | Wave: ${wave}`+(dead?" GAME OVER":pause?" PAUSED":"");
+}
 function loop(){
-  if(!dead){
-    timer++;
-    if(timer%600===1){wave++;spawn=5+wave*2}
-    if(spawn>0&&timer%45===0){
-      enemies.push({x:0,y:100,step:0,hp:wave*2+2});
-      spawn--;
-    }
-
-    enemies.forEach(e=>{
-      let target=path[e.step+1];
-      if(!target)return;
-      let d=Math.hypot(target[0]-e.x,target[1]-e.y);
-      let speed=0.7+wave*0.1;
-      if(d<speed){e.x=target[0];e.y=target[1];e.step++}
-      else{e.x+=(target[0]-e.x)/d*speed;e.y+=(target[1]-e.y)/d*speed}
-      if(e.step===3){e.hp=0;lives--;if(lives<=0)dead=true}
-    });
-
-    towers.forEach(t=>{
-      if(t.cool>0)t.cool--;
-      else{
-        let e=enemies.find(e=>e.hp>0&&Math.hypot(e.x-t.x,e.y-t.y)<110);
-        if(e){shots.push({x:t.x,y:t.y,e});t.cool=30}
-      }
-    });
-
-    shots.forEach(s=>{
-      if(s.e.hp<=0){s.done=true;return}
-      let d=Math.hypot(s.e.x-s.x,s.e.y-s.y);
-      if(d<8){s.e.hp--;s.done=true;if(s.e.hp===0)money+=10}
-      else{s.x+=(s.e.x-s.x)/d*6;s.y+=(s.e.y-s.y)/d*6}
-    });
-    shots=shots.filter(s=>!s.done);
-    enemies=enemies.filter(e=>e.hp>0);
-  }
-
-  x.fillStyle="#396b39";x.fillRect(0,0,400,500);
-  x.strokeStyle="#b99b72";x.lineWidth=45;
-  x.beginPath();x.moveTo(0,100);
-  path.slice(1).forEach(p=>x.lineTo(...p));x.stroke();
-
-  towers.forEach(t=>{
-    x.fillStyle="#2468db";
-    x.beginPath();x.arc(t.x,t.y,14,0,7);x.fill();
-  });
-  enemies.forEach(e=>{
-    x.fillStyle="red";
-    x.beginPath();x.arc(e.x,e.y,10,0,7);x.fill();
-  });
-  shots.forEach(s=>{
-    x.fillStyle="yellow";
-    x.beginPath();x.arc(s.x,s.y,4,0,7);x.fill();
-  });
-
-  info.textContent=`$${money} | Lives: ${lives} | Wave: ${wave}`+
-    (dead?" | GAME OVER":"");
-  requestAnimationFrame(loop);
+ if(!dead&&!pause)for(let i=0;i<speed;i++)step();
+ draw();requestAnimationFrame(loop);
 }
 loop();
 </script>

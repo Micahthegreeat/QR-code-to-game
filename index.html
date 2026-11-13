@@ -276,68 +276,69 @@ function decodeBase39(encoded) {
 // =============================================
 
 function decompressHuffman(data, tree) {
-    if (data.length < 4) {
-        throw new Error("Invalid Huffman file");
-    }
+    if (data.length < 4) throw new Error("Invalid Huffman file");
 
-    // The first four bytes contain the original
-    // uncompressed length, in big-endian order.
     const originalLength = (
-        (data[0] * 16777216) +
-        (data[1] << 16) +
-        (data[2] << 8) +
-        data[3]
+        data[0] * 16777216 + (data[1] << 16) +
+        (data[2] << 8) + data[3]
     ) >>> 0;
 
     log("Expected output: " + originalLength + " bytes");
-
     const output = new Uint8Array(originalLength);
+    if (originalLength === 0) return output;
 
-    if (originalLength === 0) {
+    const encoder = new TextEncoder();
+    const tokenCache = new Map();
+
+    function tokenBytes(symbol) {
+        if (typeof symbol === "number") {
+            if (!Number.isInteger(symbol) || symbol < 0 || symbol > 255)
+                throw new Error("Invalid byte in Huffman tree");
+            return Uint8Array.of(symbol);
+        }
+        if (typeof symbol === "string" && symbol.length) {
+            if (!tokenCache.has(symbol)) tokenCache.set(symbol, encoder.encode(symbol));
+            return tokenCache.get(symbol);
+        }
+        throw new Error("Invalid Huffman token");
+    }
+
+    function append(symbol, offset) {
+        const bytes = tokenBytes(symbol);
+        if (offset + bytes.length > originalLength)
+            throw new Error("Decoded data exceeds expected length");
+        output.set(bytes, offset);
+        return offset + bytes.length;
+    }
+
+    if (typeof tree === "number" || typeof tree === "string") {
+        let offset = 0;
+        while (offset < originalLength) offset = append(tree, offset);
         return output;
     }
 
-    if (tree === null) {
-        throw new Error("Huffman tree is empty");
-    }
-
-    // Handle a tree with one symbol.
-    if (typeof tree === "number") {
-        output.fill(tree);
-        return output;
-    }
+    if (!Array.isArray(tree) || tree.length !== 2)
+        throw new Error("Invalid Huffman tree");
 
     let node = tree;
-    let outputIndex = 0;
-
+    let offset = 0;
     for (let i = 4; i < data.length; i++) {
-        const byte = data[i];
-
         for (let bit = 7; bit >= 0; bit--) {
-            const direction = (byte >> bit) & 1;
-
-            node = node[direction];
-
-            if (node === undefined || node === null) {
+            node = node[(data[i] >> bit) & 1];
+            if (node === undefined || node === null)
                 throw new Error("Invalid Huffman data or tree");
-            }
 
-            if (typeof node === "number") {
-                output[outputIndex++] = node;
-
-                if (outputIndex === originalLength) {
+            if (typeof node === "number" || typeof node === "string") {
+                offset = append(node, offset);
+                if (offset === originalLength) {
                     log("Huffman decompression complete");
                     return output;
                 }
-
                 node = tree;
             }
         }
     }
-
-    throw new Error(
-        "Huffman data ended before decoding completed"
-    );
+    throw new Error("Huffman data ended prematurely");
 }
 
 // =============================================

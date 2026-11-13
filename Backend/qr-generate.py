@@ -9,6 +9,12 @@ any lower case characters automatically gets put into uppercase
 this qr code can hold 4,296 characters if the url starts with https://qr.micahknox.com/#/ then can hold 4,269 characters
 '''
 def generate_qr(url, filename="qrcode.png"):
+    print("using " + str(len(url)) + " characters our of 4296 aka " + str((len(url) / 4296) * 100) + "% of possible space")
+
+    if((len(url) / 4296) * 100 > 100):
+        print("Too big to fit in QR code")
+        raise ValueError("URL exceeds QR code maximum capacity")
+
     # QR alphanumeric mode supports only these characters
     allowed = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:"
 

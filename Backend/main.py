@@ -1,4 +1,5 @@
-
+# Example how use this file 
+# python Backend/main.py Backend/html-games/ huffman-tree-tokens.json
 import argparse
 import subprocess
 import sys

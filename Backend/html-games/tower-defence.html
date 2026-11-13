@@ -1,0 +1,99 @@
+
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;text-align:center;background:#222;color:white;font-family:Arial">
+<h3 id="info"></h3>
+<canvas id="c" width="400" height="500"
+style="width:95%;max-width:400px;background:#396b39;touch-action:none"></canvas>
+<p>Tap grass to build tower ($20)</p>
+<button onclick="start()">Restart</button>
+<script>
+const c=document.getElementById("c"),x=c.getContext("2d");
+let towers,enemies,shots,money,lives,wave,timer,spawn,dead;
+
+const path=[[0,100],[200,100],[200,300],[400,300]];
+
+function start(){
+  towers=[];enemies=[];shots=[];
+  money=100;lives=10;wave=0;
+  timer=0;spawn=0;dead=false;
+}
+start();
+
+c.onpointerdown=e=>{
+  if(dead)return;
+  let r=c.getBoundingClientRect();
+  let a=(e.clientX-r.left)*400/r.width;
+  let b=(e.clientY-r.top)*500/r.height;
+  if(money<20)return;
+  if((Math.abs(b-100)<30&&a<230)||
+     (Math.abs(a-200)<30&&b>70&&b<330)||
+     (Math.abs(b-300)<30&&a>170))return;
+  towers.push({x:a,y:b,cool:0});
+  money-=20;
+};
+
+function loop(){
+  if(!dead){
+    timer++;
+    if(timer%600===1){wave++;spawn=5+wave*2}
+    if(spawn>0&&timer%45===0){
+      enemies.push({x:0,y:100,step:0,hp:wave*2+2});
+      spawn--;
+    }
+
+    enemies.forEach(e=>{
+      let target=path[e.step+1];
+      if(!target)return;
+      let d=Math.hypot(target[0]-e.x,target[1]-e.y);
+      let speed=0.7+wave*0.1;
+      if(d<speed){e.x=target[0];e.y=target[1];e.step++}
+      else{e.x+=(target[0]-e.x)/d*speed;e.y+=(target[1]-e.y)/d*speed}
+      if(e.step===3){e.hp=0;lives--;if(lives<=0)dead=true}
+    });
+
+    towers.forEach(t=>{
+      if(t.cool>0)t.cool--;
+      else{
+        let e=enemies.find(e=>e.hp>0&&Math.hypot(e.x-t.x,e.y-t.y)<110);
+        if(e){shots.push({x:t.x,y:t.y,e});t.cool=30}
+      }
+    });
+
+    shots.forEach(s=>{
+      if(s.e.hp<=0){s.done=true;return}
+      let d=Math.hypot(s.e.x-s.x,s.e.y-s.y);
+      if(d<8){s.e.hp--;s.done=true;if(s.e.hp===0)money+=10}
+      else{s.x+=(s.e.x-s.x)/d*6;s.y+=(s.e.y-s.y)/d*6}
+    });
+    shots=shots.filter(s=>!s.done);
+    enemies=enemies.filter(e=>e.hp>0);
+  }
+
+  x.fillStyle="#396b39";x.fillRect(0,0,400,500);
+  x.strokeStyle="#b99b72";x.lineWidth=45;
+  x.beginPath();x.moveTo(0,100);
+  path.slice(1).forEach(p=>x.lineTo(...p));x.stroke();
+
+  towers.forEach(t=>{
+    x.fillStyle="#2468db";
+    x.beginPath();x.arc(t.x,t.y,14,0,7);x.fill();
+  });
+  enemies.forEach(e=>{
+    x.fillStyle="red";
+    x.beginPath();x.arc(e.x,e.y,10,0,7);x.fill();
+  });
+  shots.forEach(s=>{
+    x.fillStyle="yellow";
+    x.beginPath();x.arc(s.x,s.y,4,0,7);x.fill();
+  });
+
+  info.textContent=`$${money} | Lives: ${lives} | Wave: ${wave}`+
+    (dead?" | GAME OVER":"");
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

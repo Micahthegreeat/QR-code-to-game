@@ -1,0 +1,79 @@
+
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;text-align:center;background:#222;color:white">
+<h2>Snake: <span id="score">0</span></h2>
+<canvas id="c" width="400" height="400"
+style="width:95%;max-width:400px;background:black;touch-action:none"></canvas>
+<p>Arrow keys / WASD / Swipe to move</p>
+<script>
+const c=document.getElementById("c"),x=c.getContext("2d");
+let snake,food,dx,dy,dead,points;
+
+function start(){
+  snake=[[10,10]];
+  food=[5,5];
+  dx=1;dy=0;dead=false;points=0;
+  score.textContent=0;
+}
+start();
+
+function turn(a,b){
+  if(a!==-dx||b!==-dy){dx=a;dy=b}
+}
+
+onkeydown=e=>{
+  let k=e.key.toLowerCase();
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k))
+    e.preventDefault();
+  if(dead){start();return}
+  if(k==="arrowup"||k==="w")turn(0,-1);
+  if(k==="arrowdown"||k==="s")turn(0,1);
+  if(k==="arrowleft"||k==="a")turn(-1,0);
+  if(k==="arrowright"||k==="d")turn(1,0);
+};
+
+let sx,sy;
+c.onpointerdown=e=>{sx=e.clientX;sy=e.clientY;if(dead)start()};
+c.onpointerup=e=>{
+  let a=e.clientX-sx,b=e.clientY-sy;
+  if(Math.max(Math.abs(a),Math.abs(b))<15)return;
+  if(Math.abs(a)>Math.abs(b))turn(Math.sign(a),0);
+  else turn(0,Math.sign(b));
+};
+
+function loop(){
+  if(!dead){
+    let head=[snake[0][0]+dx,snake[0][1]+dy];
+    let eat=head[0]===food[0]&&head[1]===food[1];
+    if(head.some(v=>v<0||v>=20)||
+       snake.slice(0,eat?undefined:-1).some(p=>p[0]===head[0]&&p[1]===head[1]))
+      dead=true;
+    else{
+      snake.unshift(head);
+      if(eat){
+        points++;
+        score.textContent=points;
+        do{
+          food=[Math.floor(Math.random()*20),Math.floor(Math.random()*20)];
+        }while(snake.some(p=>p[0]===food[0]&&p[1]===food[1]));
+      }else snake.pop();
+    }
+  }
+
+  x.clearRect(0,0,400,400);
+  x.fillStyle="lime";
+  snake.forEach(p=>x.fillRect(p[0]*20,p[1]*20,19,19));
+  x.fillStyle="red";
+  x.fillRect(food[0]*20,food[1]*20,19,19);
+  if(dead){
+    x.fillStyle="white";
+    x.font="24px Arial";
+    x.fillText("Game Over! Tap to restart",55,200);
+  }
+}
+setInterval(loop,120);
+</script>
+</body>
+</html>

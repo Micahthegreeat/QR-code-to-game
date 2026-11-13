@@ -1,0 +1,64 @@
+
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:black;text-align:center;color:white">
+<h3 id="info">Space Invaders</h3>
+<canvas id="c" width="400" height="500" style="width:95%;max-width:400px;touch-action:none"></canvas>
+<p>Move to shoot automatically</p>
+<script>
+const c=document.getElementById("c"),x=c.getContext("2d");
+let p=190,shots=[],enemies=[],score=0,dead=false,keys={},tick=0;
+function start(){
+ p=190;shots=[];score=0;dead=false;tick=0;
+ enemies=Array.from({length:24},(_,i)=>({
+ x:30+i%8*45,y:40+(i/8|0)*40
+ }));
+}
+start();
+onkeydown=e=>{keys[e.key]=true;if(dead)start()};
+onkeyup=e=>keys[e.key]=false;
+c.onpointermove=c.onpointerdown=e=>{
+ let r=c.getBoundingClientRect();
+ p=(e.clientX-r.left)*400/r.width-15;
+ if(dead)start();
+};
+function loop(){
+ if(!dead){
+  tick++;
+  if(keys.ArrowLeft||keys.a)p-=5;
+  if(keys.ArrowRight||keys.d)p+=5;
+  p=Math.max(0,Math.min(370,p));
+  if(tick%15===0)shots.push({x:p+15,y:450});
+  shots.forEach(s=>s.y-=7);
+  shots=shots.filter(s=>s.y>0);
+  enemies.forEach(e=>{
+   e.x+=Math.sin(tick/50)*.5;
+   if(tick%120===0)e.y+=12;
+   if(e.y>430)dead=true;
+   shots.forEach(s=>{
+    if(Math.abs(s.x-e.x)<15&&Math.abs(s.y-e.y)<15){
+     e.dead=true;s.y=-10;score++;
+    }
+   });
+  });
+  enemies=enemies.filter(e=>!e.dead);
+  if(!enemies.length){
+   enemies=Array.from({length:24},(_,i)=>({
+    x:30+i%8*45,y:40+(i/8|0)*40
+   }));
+  }
+ }
+ x.fillStyle="black";x.fillRect(0,0,400,500);
+ x.fillStyle="lime";x.fillRect(p,460,30,20);
+ x.fillStyle="yellow";
+ shots.forEach(s=>x.fillRect(s.x,s.y,4,12));
+ x.fillStyle="red";
+ enemies.forEach(e=>x.fillRect(e.x-12,e.y-10,24,20));
+ info.textContent="Score: "+score+(dead?" GAME OVER - Tap to restart":"");
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

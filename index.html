@@ -1,0 +1,459 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Game Decoder</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        background: #101827;
+        color: white;
+        font-family: Consolas, monospace;
+    }
+
+    #loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: #101827;
+        z-index: 10;
+        transition: opacity 0.4s;
+    }
+
+    h1 {
+        color: #4ade80;
+        text-align: center;
+        letter-spacing: 3px;
+    }
+
+    .decoder {
+        width: min(90vw, 440px);
+        padding: 24px;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        background: #1e293b;
+        box-shadow: 0 0 35px #4ade8015;
+    }
+
+    .icon {
+        text-align: center;
+        font-size: 64px;
+        margin-bottom: 15px;
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.95); }
+    }
+
+    #status {
+        color: #86efac;
+        font-size: 14px;
+        min-height: 36px;
+        margin-bottom: 15px;
+    }
+
+    .progress-container {
+        width: 100%;
+        height: 12px;
+        background: #334155;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    #progress {
+        width: 0%;
+        height: 100%;
+        background: #4ade80;
+        transition: width 0.2s;
+    }
+
+    #percent {
+        text-align: right;
+        margin-top: 8px;
+        color: #94a3b8;
+        font-size: 12px;
+    }
+
+    #terminal {
+        margin-top: 20px;
+        height: 125px;
+        overflow: hidden;
+        font-size: 11px;
+        color: #64748b;
+        line-height: 1.7;
+        overflow-wrap: anywhere;
+    }
+
+    #error {
+        color: #f87171;
+        margin-top: 15px;
+        overflow-wrap: anywhere;
+    }
+
+    #game {
+        display: none;
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+        background: white;
+    }
+
+    #home {
+        display: none;
+        text-align: center;
+        margin-top: 20px;
+        color: #94a3b8;
+    }
+
+    #home a {
+        color: #4ade80;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="loading">
+    <h1>QR GAME DECODER</h1>
+
+    <div class="decoder">
+        <div class="icon">▣</div>
+
+        <div id="status">Initializing decoder...</div>
+
+        <div class="progress-container">
+            <div id="progress"></div>
+        </div>
+
+        <div id="percent">0%</div>
+
+        <div id="terminal"></div>
+
+        <div id="error"></div>
+    </div>
+
+    <div id="home">
+        No game data found in URL.
+    </div>
+</div>
+
+<iframe
+    id="game"
+    title="Decoded Game"
+    allow="fullscreen"
+></iframe>
+
+<script>
+"use strict";
+
+// =============================================
+// CONFIGURATION - CHANGE THESE VALUES
+// =============================================
+
+// Location of your shared Huffman tree.
+// Relative to the website root, not the URL path.
+const HUFFMAN_TREE_URL = "/huffman-tree.json";
+
+// The URL format is:
+// https://qr.micahknox.com/0/BASE39_DATA
+//
+// Also works with:
+// http://localhost:8000/0/BASE39_DATA
+const URL_PREFIX = "/0/";
+
+// Base-39 alphabet used by your Python script
+const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ*+-";
+
+// =============================================
+// UI FUNCTIONS
+// =============================================
+
+const statusElement = document.getElementById("status");
+const progressElement = document.getElementById("progress");
+const percentElement = document.getElementById("percent");
+const terminalElement = document.getElementById("terminal");
+
+function setProgress(percent, message) {
+    progressElement.style.width = percent + "%";
+    percentElement.textContent = percent + "%";
+    statusElement.textContent = message;
+}
+
+function log(message) {
+    const line = document.createElement("div");
+    line.textContent = "> " + message;
+    terminalElement.appendChild(line);
+    terminalElement.scrollTop = terminalElement.scrollHeight;
+
+    while (terminalElement.children.length > 7) {
+        terminalElement.firstChild.remove();
+    }
+}
+
+// Give the browser an opportunity to update the UI.
+function nextFrame() {
+    return new Promise(resolve => {
+        requestAnimationFrame(() => {
+            setTimeout(resolve, 0);
+        });
+    });
+}
+
+// =============================================
+// BASE-39 DECODER
+// =============================================
+
+function decodeBase39(encoded) {
+    if (!encoded) {
+        return new Uint8Array(0);
+    }
+
+    log("Reading Base-39 payload...");
+
+    // Preserve leading zero bytes.
+    let leadingZeros = 0;
+
+    while (
+        leadingZeros < encoded.length &&
+        encoded[leadingZeros] === "0"
+    ) {
+        leadingZeros++;
+    }
+
+    // Convert Base-39 into one large integer.
+    let number = 0n;
+
+    for (const char of encoded) {
+        const digit = ALPHABET.indexOf(char);
+
+        if (digit === -1) {
+            throw new Error(
+                "Invalid Base-39 character: " + char
+            );
+        }
+
+        number = number * 39n + BigInt(digit);
+    }
+
+    // Convert integer into bytes.
+    const bytes = [];
+
+    while (number > 0n) {
+        bytes.push(Number(number & 255n));
+        number >>= 8n;
+    }
+
+    bytes.reverse();
+
+    const result = new Uint8Array(
+        leadingZeros + bytes.length
+    );
+
+    result.set(bytes, leadingZeros);
+
+    log("Recovered " + result.length + " binary bytes");
+
+    return result;
+}
+
+// =============================================
+// HUFFMAN DECODER
+// =============================================
+
+function decompressHuffman(data, tree) {
+    if (data.length < 4) {
+        throw new Error("Invalid Huffman file");
+    }
+
+    // The first four bytes contain the original
+    // uncompressed length, in big-endian order.
+    const originalLength = (
+        (data[0] * 16777216) +
+        (data[1] << 16) +
+        (data[2] << 8) +
+        data[3]
+    ) >>> 0;
+
+    log("Expected output: " + originalLength + " bytes");
+
+    const output = new Uint8Array(originalLength);
+
+    if (originalLength === 0) {
+        return output;
+    }
+
+    if (tree === null) {
+        throw new Error("Huffman tree is empty");
+    }
+
+    // Handle a tree with one symbol.
+    if (typeof tree === "number") {
+        output.fill(tree);
+        return output;
+    }
+
+    let node = tree;
+    let outputIndex = 0;
+
+    for (let i = 4; i < data.length; i++) {
+        const byte = data[i];
+
+        for (let bit = 7; bit >= 0; bit--) {
+            const direction = (byte >> bit) & 1;
+
+            node = node[direction];
+
+            if (node === undefined || node === null) {
+                throw new Error("Invalid Huffman data or tree");
+            }
+
+            if (typeof node === "number") {
+                output[outputIndex++] = node;
+
+                if (outputIndex === originalLength) {
+                    log("Huffman decompression complete");
+                    return output;
+                }
+
+                node = tree;
+            }
+        }
+    }
+
+    throw new Error(
+        "Huffman data ended before decoding completed"
+    );
+}
+
+// =============================================
+// GAME LOADER
+// =============================================
+
+async function loadGame() {
+    try {
+        // Read Base-39 payload from URL.
+        const path = window.location.pathname;
+
+        if (!path.startsWith(URL_PREFIX)) {
+            setProgress(0, "Waiting for game URL");
+            document.getElementById("home").style.display =
+                "block";
+            return;
+        }
+
+        const encoded = decodeURIComponent(
+            path.slice(URL_PREFIX.length)
+        );
+
+        if (!encoded) {
+            throw new Error("No game data provided");
+        }
+
+        setProgress(10, "Game data detected");
+        log("Payload length: " + encoded.length + " characters");
+
+        await nextFrame();
+
+        // Load shared Huffman tree.
+        setProgress(20, "Downloading Huffman tree...");
+        log("Fetching " + HUFFMAN_TREE_URL);
+
+        const response = await fetch(HUFFMAN_TREE_URL);
+
+        if (!response.ok) {
+            throw new Error(
+                "Failed to fetch tree: HTTP " + response.status
+            );
+        }
+
+        const tree = await response.json();
+
+        log("Huffman tree loaded");
+
+        setProgress(40, "Converting Base-39 to binary...");
+        await nextFrame();
+
+        // Decode Base-39.
+        const binary = decodeBase39(encoded);
+
+        setProgress(65, "Decompressing Huffman data...");
+        await nextFrame();
+
+        // Decompress Huffman data.
+        const decompressed = decompressHuffman(
+            binary,
+            tree
+        );
+
+        setProgress(85, "Reconstructing HTML...");
+        await nextFrame();
+
+        // Convert bytes into HTML.
+        const html = new TextDecoder(
+            "utf-8",
+            { fatal: true }
+        ).decode(decompressed);
+
+        log("HTML reconstructed");
+        log("Preparing game...");
+
+        setProgress(95, "Launching game...");
+        await nextFrame();
+
+        // Load HTML into isolated iframe.
+        const gameFrame = document.getElementById("game");
+
+        gameFrame.addEventListener("load", () => {
+            setProgress(100, "Game ready!");
+
+            document.getElementById("loading").style.opacity = "0";
+
+            setTimeout(() => {
+                document.getElementById("loading").style.display =
+                    "none";
+                gameFrame.focus();
+            }, 400);
+        }, { once: true });
+
+        // Restrict iframe access to the parent page.
+        // Scripts are allowed so HTML games can run.
+        gameFrame.setAttribute(
+            "sandbox",
+            "allow-scripts allow-pointer-lock"
+        );
+
+        gameFrame.style.display = "block";
+        gameFrame.srcdoc = html;
+
+    } catch (error) {
+        console.error(error);
+
+        setProgress(0, "Decoding failed");
+
+        document.getElementById("error").textContent =
+            error.message;
+
+        log("ERROR: " + error.message);
+    }
+}
+
+loadGame();
+</script>
+
+</body>
+</html>

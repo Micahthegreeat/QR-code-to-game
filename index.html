@@ -355,15 +355,22 @@ function decompressHuffman(data, tree) {
 
 async function loadGame() {
     try {
-        // URL format: /TREE_ID/BASE39_PAYLOAD
-        const match = window.location.pathname.match(/^\/(0|[1-9]\d*)\/([0-9A-Z*+\-]+)\/?$/);
+        // Parse the URL before validating Base-39. URL-encoded characters
+        // such as %2B (+) and %2A (*) are allowed in the payload.
+        const path = window.location.pathname;
+        const match = path.match(/^\/(\d+)\/(.+?)\/?$/);
         if (!match) {
             setProgress(0, "Waiting for a valid encoded URL");
             document.getElementById("home").style.display = "block";
+            log("Expected /TREE_ID/BASE39_DATA; received: " + path.slice(0, 100));
             return;
         }
-        const treeId = match[1];
-        const encoded = match[2];
+
+        const treeId = String(BigInt(match[1]));
+        const encoded = decodeURIComponent(match[2]).toUpperCase();
+        if (!/^[0-9A-Z*+\-]+$/.test(encoded)) {
+            throw new Error("Invalid Base-39 characters in URL payload");
+        }
         const treeUrl = TREE_DIRECTORY + treeId + ".json";
         log("Using Huffman tree " + treeId);
 

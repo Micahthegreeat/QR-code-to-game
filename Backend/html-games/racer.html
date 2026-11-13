@@ -1,0 +1,56 @@
+
+<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#222;color:white;text-align:center;font:16px Arial">
+<div id="info"></div>
+<canvas id="c" width="400" height="500" style="width:100%;height:90dvh;touch-action:none"></canvas>
+<script>
+const c=document.querySelector("canvas"),x=c.getContext("2d");
+let px=185,cars=[],coins=[],score=0,dead=false,t=0,keys={};
+function start(){px=185;cars=[];coins=[];score=t=0;dead=false}
+function move(e){
+ let r=c.getBoundingClientRect();
+ px=Math.max(65,Math.min(305,(e.clientX-r.left)*400/r.width-15));
+ if(dead)start();
+}
+c.onpointerdown=c.onpointermove=move;
+onkeydown=e=>{
+ keys[e.key]=true;
+ if(dead)start();
+};
+onkeyup=e=>keys[e.key]=false;
+function loop(){
+ if(!dead){
+ t++;score++;
+ if(keys.ArrowLeft||keys.a)px-=5;
+ if(keys.ArrowRight||keys.d)px+=5;
+ px=Math.max(65,Math.min(305,px));
+ if(t%45===0)cars.push({x:70+(Math.random()*3|0)*100,y:-50});
+ if(t%70===0)coins.push({x:85+(Math.random()*3|0)*100,y:-20});
+ cars.forEach(a=>a.y+=4+score/2000);
+ coins.forEach(a=>a.y+=4+score/2000);
+ cars=cars.filter(a=>a.y<550);
+ coins=coins.filter(a=>{
+ if(Math.abs(px+15-a.x)<25&&Math.abs(430-a.y)<30){score+=100;return false}
+ return a.y<550;
+ });
+ if(cars.some(a=>Math.abs(px-a.x)<35&&Math.abs(430-a.y)<45))dead=true;
+ }
+ x.fillStyle="#396b39";x.fillRect(0,0,400,500);
+ x.fillStyle="#444";x.fillRect(50,0,300,500);
+ x.strokeStyle="white";x.setLineDash([20,20]);x.lineWidth=3;
+ for(let i=1;i<3;i++){
+ x.beginPath();x.moveTo(50+i*100,0);x.lineTo(50+i*100,500);x.stroke();
+ }
+ x.setLineDash([]);
+ x.fillStyle="cyan";x.fillRect(px,410,30,45);
+ x.fillStyle="red";cars.forEach(a=>x.fillRect(a.x,a.y,30,45));
+ x.fillStyle="yellow";coins.forEach(a=>{
+ x.beginPath();x.arc(a.x,a.y,10,0,7);x.fill();
+ });
+ info.textContent="Score: "+(score/10|0)+(dead?" | Game Over - Tap to restart":"");
+ requestAnimationFrame(loop);
+}
+start();loop();
+</script>
+</body>
+</html>

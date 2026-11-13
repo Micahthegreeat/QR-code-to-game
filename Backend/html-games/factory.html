@@ -1,0 +1,50 @@
+
+<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="background:#222;color:white;text-align:center;font:18px Arial">
+<h2>Idle Factory</h2>
+<h1 id="money">$0</h1>
+<p id="rate"></p>
+<button onclick="cash+=power" style="font-size:30px;padding:30px">WORK</button>
+<h3>Buy Machines</h3>
+<div id="shop"></div>
+<button onclick="buyClick()" id="clicker"></button>
+<button onclick="localStorage.removeItem('factorySave');location.reload()">Reset</button>
+<script>
+let cash=0,power=1,clickCost=20;
+let machines=[
+ ["Worker",10,1,0],
+ ["Drill",100,10,0],
+ ["Robot",1000,100,0],
+ ["Factory",10000,1000,0]
+];
+try{
+ let s=JSON.parse(localStorage.factorySave);
+ if(s){cash=s.cash;power=s.power;clickCost=s.clickCost;machines=s.machines}
+}catch(e){}
+function buy(i){
+ let m=machines[i],cost=Math.floor(m[1]*1.4**m[3]);
+ if(cash>=cost){cash-=cost;m[3]++}
+}
+function buyClick(){
+ if(cash>=clickCost){cash-=clickCost;power++;clickCost=Math.ceil(clickCost*1.6)}
+}
+machines.forEach((m,i)=>shop.innerHTML+=`<p><button id="b${i}" onclick="buy(${i})"></button></p>`);
+function update(){
+ let income=machines.reduce((s,m)=>s+m[2]*m[3],0);
+ money.textContent="$"+Math.floor(cash);
+ rate.textContent="$"+income+"/sec | Click: $"+power;
+ machines.forEach((m,i)=>{
+ document.getElementById("b"+i).textContent=
+ m[0]+" ("+m[3]+") - $"+Math.floor(m[1]*1.4**m[3]);
+ });
+ clicker.textContent="Upgrade Click - $"+clickCost;
+}
+setInterval(()=>{
+ cash+=machines.reduce((s,m)=>s+m[2]*m[3],0)/10;
+ update();
+},100);
+setInterval(()=>localStorage.factorySave=JSON.stringify({cash,power,clickCost,machines}),1000);
+update();
+</script>
+</body>
+</html>

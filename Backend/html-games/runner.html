@@ -1,0 +1,40 @@
+
+<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#111;color:white;text-align:center;font:16px Arial">
+<h3 id="info">Geometry Runner</h3>
+<canvas id="c" width="400" height="300" style="width:100%;height:80dvh;touch-action:none"></canvas>
+<p>Tap to jump</p>
+<script>
+const c=document.querySelector("canvas"),x=c.getContext("2d");
+let y=220,v=0,spikes=[],score=0,dead=false,t=0;
+function jump(){
+ if(dead){y=220;v=0;spikes=[];score=t=0;dead=false}
+ else if(y>=220)v=-11;
+}
+c.onpointerdown=jump;
+onkeydown=e=>{if(e.code==="Space"){e.preventDefault();jump()}};
+function loop(){
+ if(!dead){
+ t++;score++;
+ v+=.5;y+=v;if(y>220){y=220;v=0}
+ if(t%85===0)spikes.push({x:400});
+ spikes.forEach(s=>s.x-=4+score/1000);
+ spikes=spikes.filter(s=>s.x>-30);
+ if(spikes.some(s=>s.x<75&&s.x+25>50&&y+30>245))dead=true;
+ }
+ x.fillStyle="#111";x.fillRect(0,0,400,300);
+ x.fillStyle="cyan";x.fillRect(50,y,25,30);
+ x.fillStyle="red";
+ spikes.forEach(s=>{
+ x.beginPath();x.moveTo(s.x,250);x.lineTo(s.x+12,215);
+ x.lineTo(s.x+25,250);x.fill();
+ });
+ x.fillStyle="white";x.fillRect(0,250,400,3);
+ x.font="20px Arial";x.fillText("Score: "+(score/10|0),10,25);
+ if(dead)x.fillText("Game Over - Tap to restart",70,150);
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

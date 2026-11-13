@@ -1,0 +1,52 @@
+
+<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#222;color:white;text-align:center;font:16px Arial">
+<h3 id="info">Connect Four</h3>
+<canvas id="c" width="350" height="300" style="width:100%;max-width:500px;touch-action:none"></canvas>
+<button onclick="start()">Restart</button>
+<script>
+const c=document.querySelector("canvas"),x=c.getContext("2d");
+let b,over;
+function start(){
+ b=Array.from({length:6},()=>Array(7).fill(0));
+ over=false;info.textContent="Your turn (Red)";draw();
+}
+function drop(col,player){
+ for(let y=5;y>=0;y--)if(!b[y][col]){
+  b[y][col]=player;return true;
+ }
+ return false;
+}
+function win(p){
+ return b.some((r,y)=>r.some((v,z)=>{
+  if(v!==p)return false;
+  return [[1,0],[0,1],[1,1],[1,-1]].some(([a,d])=>
+   [1,2,3].every(i=>b[y+d*i]?.[z+a*i]===p));
+ }));
+}
+function play(col){
+ if(over||!drop(col,1))return;
+ if(win(1)){end("You Win!");return}
+ let valid=b[0].map((v,i)=>v?-1:i).filter(i=>i>=0);
+ if(!valid.length){end("Draw!");return}
+ drop(valid[Math.random()*valid.length|0],2);
+ if(win(2))end("Computer Wins!");
+ else if(b[0].every(Boolean))end("Draw!");
+ draw();
+}
+function end(s){over=true;info.textContent=s;draw()}
+function draw(){
+ x.fillStyle="blue";x.fillRect(0,0,350,300);
+ b.forEach((r,y)=>r.forEach((v,z)=>{
+ x.fillStyle=["white","red","yellow"][v];
+ x.beginPath();x.arc(z*50+25,y*50+25,20,0,7);x.fill();
+ }));
+}
+c.onpointerdown=e=>{
+ let r=c.getBoundingClientRect();
+ play(Math.min(6,Math.max(0,Math.floor((e.clientX-r.left)*7/r.width))));
+};
+start();
+</script>
+</body>
+</html>

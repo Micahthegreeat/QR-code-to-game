@@ -1,0 +1,44 @@
+
+<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#222;color:white;text-align:center;font:16px Arial">
+<h3 id="info">Stack Tower</h3>
+<canvas id="c" width="400" height="500" style="width:100%;height:85dvh;touch-action:none"></canvas>
+<p>Tap to stack</p>
+<script>
+const c=document.querySelector("canvas"),x=c.getContext("2d");
+let blocks,w,pos,dir,score,dead;
+function start(){
+ blocks=[{x:100,y:460,w:200}];
+ w=200;pos=0;dir=3;score=0;dead=false;
+}
+function drop(){
+ if(dead){start();return}
+ let last=blocks.at(-1),left=Math.max(pos,last.x),right=Math.min(pos+w,last.x+last.w);
+ w=right-left;
+ if(w<=0){dead=true;return}
+ blocks.push({x:left,y:460-blocks.length*25,w});
+ pos=0;dir=3+score*.2;score++;
+}
+c.onpointerdown=drop;
+onkeydown=e=>{if(e.code==="Space"){e.preventDefault();drop()}};
+start();
+function loop(){
+ if(!dead){pos+=dir;if(pos<0||pos+w>400)dir*=-1}
+ x.fillStyle="#222";x.fillRect(0,0,400,500);
+ let shift=Math.max(0,(blocks.length-15)*25);
+ blocks.forEach((b,i)=>{
+ x.fillStyle=`hsl(${i*25},70%,55%)`;
+ x.fillRect(b.x,b.y+shift,b.w,24);
+ });
+ if(!dead){
+ x.fillStyle="cyan";x.fillRect(pos,460-blocks.length*25+shift,w,24);
+ }
+ x.fillStyle="white";x.font="24px Arial";
+ x.fillText("Score: "+score,10,30);
+ if(dead)x.fillText("Game Over - Tap to restart",50,250);
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

@@ -1074,6 +1074,34 @@ function on(event,fn) {
 }
 
 // ============================================
+// TILT CONTROLS
+// ============================================
+
+let qgTiltValue = 0;
+
+window.addEventListener('message', event => {
+    if(event.source !== window.parent) return;
+    if(event.origin !== __qgParentOrigin) return;
+
+    if(event.data && event.data.type === 'QG_TILT'){
+        qgTiltValue = event.data.value;
+    }
+});
+
+window.qgTilt = function(enable){
+
+    if(enable){
+        qgTiltValue = 0;
+
+        window.parent.postMessage({
+            type:'QG_TILT_ENABLE'
+        }, __qgParentOrigin);
+    }
+
+    return qgTiltValue;
+};
+
+// ============================================
 // SEEDED RANDOMNESS
 // ============================================
 
@@ -1212,6 +1240,93 @@ function load() {
 // =============================================
 
 let activeStorageKey = null;
+
+// =============================================
+// QG MOTION SENSOR BRIDGE
+// =============================================
+
+let tiltCenter = null;
+let tiltEnabled = false;
+
+window.addEventListener("deviceorientation", event => {
+
+    if(!tiltEnabled || event.gamma === null) {
+        return;
+    }
+
+    if(tiltCenter === null) {
+        tiltCenter = event.gamma;
+    }
+
+    const value = Math.max(-1, Math.min(1,
+        (event.gamma - tiltCenter) / 25
+    ));
+
+    gameFrame.contentWindow.postMessage({
+        type: "QG_TILT",
+        value: value
+    }, "*");
+});
+
+window.addEventListener("message", event => {
+
+    if(event.source !== gameFrame.contentWindow) {
+        return;
+    }
+
+    if(!event.data ||
+       event.data.type !== "QG_TILT_ENABLE") {
+        return;
+    }
+
+    tiltCenter = null;
+
+    if(tiltEnabled) {
+        return;
+    }
+
+    if(
+        typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function"
+    ) {
+
+        if(document.getElementById("tiltPermission")) {
+            return;
+        }
+
+        const button = document.createElement("button");
+
+        button.id = "tiltPermission";
+        button.textContent = "Enable Tilt Controls";
+
+        button.style.cssText =
+            "position:fixed;top:45%;left:10%;" +
+            "width:80%;padding:20px;z-index:9999;" +
+            "background:#182334;color:white;" +
+            "font-size:20px;border:2px solid white;" +
+            "border-radius:12px;";
+
+        document.body.appendChild(button);
+
+        button.onclick = async function() {
+
+            try {
+                const permission =
+                    await DeviceOrientationEvent.requestPermission();
+
+                tiltEnabled = permission === "granted";
+
+            } catch(error) {
+                console.warn(error);
+            }
+
+            button.remove();
+        };
+
+    } else {
+        tiltEnabled = true;
+    }
+});
 
 // Generate an ID from the uncompressed program.
 // Raw and GZIP versions of the same binary share

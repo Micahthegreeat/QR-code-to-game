@@ -1,108 +1,225 @@
 
-<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
-<body style="margin:0;background:#222;color:white;text-align:center;font:16px Arial">
-<div id="info"></div><div id="shop"></div>
-<button onclick="next()">Wave</button><button onclick="pause=!pause">Pause</button>
-<button onclick="speed=3-speed;this.textContent=speed+'x'">1x</button>
-<button onclick="start()">Restart</button>
-<canvas id="c" width="400" height="500" style="width:100%;height:55dvh;display:block;touch-action:none"></canvas>
-<button onclick="up(0)">Damage $25</button><button onclick="up(1)">Range $25</button>
-<button onclick="up(2)">Speed $25</button><button onclick="sell()">Sell</button>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;overflow:hidden;touch-action:none">
+<canvas id=c width=480 height=640 style="width:100vw;height:100dvh"></canvas>
 <script>
-const c=document.querySelector("canvas"),x=c.getContext("2d"),
-P=[[0,100],[200,100],[200,300],[400,300]],
-T=[["Fast",20,"cyan",1,15,90],["Strong",40,"red",5,65,125],["Splash",60,"violet",2,50,110],["Ice",45,"lightblue",1,35,110],["Poison",50,"lime",1,40,115]];
-let towers,enemies,money,lives,wave,spawn,tick,dead,pause,speed,active,sel,chosen=0;
-T.forEach((t,i)=>{
- let b=document.createElement("button");
- b.textContent=t[0]+" $"+t[1];
- b.onclick=()=>{chosen=i;sel=null;highlight()};
- shop.appendChild(b);
-});
-function highlight(){
- [...shop.children].forEach((b,i)=>{
- b.style.background=i===chosen?T[i][2]:"#ddd";
- b.style.border=i===chosen?"3px solid white":"3px solid transparent";
- });
+let x=c.getContext("2d"),r=Math.random,m=[],a=[],b=[],p=[],s=[],g=200,h=20,w=0,n=0,f=0,t=0,o=0,q=-1,N=["NORMAL","WAVE","SNIPER"],A=[[45,2,2,1.4,20,1.2,210],[36,7,3,1.5,45,1.05,285],[105,4,12,2,65,1.05,32]];
+x.scale(2,2);
+x.textAlign="center";
+x.font="9px sans-serif";
+
+function e(s,i,j){
+ x.fillStyle=`#fff`;
+ x.fillText(s,i,j)
 }
-function start(){
- towers=[];enemies=[];money=150;lives=10;wave=spawn=tick=0;
- dead=pause=active=false;speed=1;sel=null;chosen=0;highlight();
+
+function d(a,b){
+ return Math.hypot(a[0]-b[0],a[1]-b[1])
 }
-function next(){if(!active&&!dead){wave++;spawn=5+wave*2+(wave%5===0);active=true}}
-function up(i){
- if(!sel||money<25)return;
- money-=25;
- if(i===0)sel.d++;
- if(i===1)sel.r+=20;
- if(i===2)sel.f=Math.max(5,sel.f*.8);
+
+function R(a){
+ let z=A[a[2]];
+ return z[0]+z[1]*(a[3]-1)
 }
-function sell(){
- if(sel){money+=sel.cost*.7|0;towers=towers.filter(t=>t!==sel);sel=null}
+
+function D(a){
+ let z=A[a[2]];
+ return z[2]*a[3]**z[3]
 }
-start();
+
+function H(h,l){
+ return `hsl(${h},75%,${l}%)`
+}
+
+function K(a){
+ return H(A[a[2]][6]+a[3]*4,35+a[3]*11%45)
+}
+
+function B(i,j,k,l,h){
+ x.fillStyle=h;
+ x.fillRect(i,j,k,l)
+}
+
+function maps(){
+ s=[0,0,0].map(()=>{
+  let a=[],j=2+r()*10|0;
+  for(let i=0;i<12;i++){
+   a.push([i,j]);
+   if(i%2==0){
+    let k=2+r()*10|0;
+    while(j!=k)a.push([i,j+=Math.sign(k-j)])
+   }
+  }
+  return a
+ })
+}
+
+maps();
+
+function M(a,i,j,k){
+ B(i,j,k*12,k*14,"#465f38");
+ x.fillStyle=`#527242`;
+ for(let u=0;u<12;u++)
+ for(let v=0;v<14;v++)
+ x.fillRect(i+u*k+2,j+v*k+2,k/6,k/6);
+ x.fillStyle=`#a38b63`;
+ a.forEach(a=>x.fillRect(i+a[0]*k,j+a[1]*k,k,k))
+}
+
+function S(a,s,k,h){
+ x.fillStyle=h;
+ s.forEach((s,j)=>{
+  for(let i=0;i<9;i++)
+  if(s>>Math.min(i,8-i)&1)
+  x.fillRect(a[0]+(i-4.5)*k,a[1]+(j-4)*k,k,k)
+ })
+}
+
+function E(a){
+ let k=a[5]?2.5:1.3,i=a[0],j=a[1];
+ S(a,[4,14,31,21,31,14,21,17],k,H(Math.log(a[4])*120%360,55));
+ B(i-3*k,j-k,k,k,"#222");
+ x.fillRect(i+2*k,j-k,k,k);
+ x.fillRect(i-7,j-6*k,14,2);
+ B(i-7,j-6*k,14*a[3]/a[4],2,"#7f5")
+}
+
+function T(a){
+ let i=a[0],j=a[1],h=K(a);
+ B(i-9,j-8,18,18,"#333");
+ S(a,[14,31,27,31,27,31,14],2,h);
+ B(i-4,j-5,8,8,"#222");
+ B(i-2,j-3,4,4,h);
+ e(a[3],i,j+8)
+}
+
+function U(s,i,j,k,h){
+ B(i,j,k,19,h?"#464":"#333");
+ e(s,i+k/2,j+13)
+}
+
+function W(){
+ if(!n&&!m.length&&h>0)n=5+ ++w*2,f=0
+}
+
+function P(a){
+ return 50*(a[2]+1)*a[3]
+}
+
 c.onpointerdown=e=>{
- if(dead)return;
- let r=c.getBoundingClientRect(),a=(e.clientX-r.left)*400/r.width,b=(e.clientY-r.top)*500/r.height;
- sel=towers.find(t=>Math.hypot(t.x-a,t.y-b)<20);
- if(sel)return;
- let t=T[chosen];
- if(money<t[1]||towers.some(q=>Math.hypot(q.x-a,q.y-b)<30))return;
- if((Math.abs(b-100)<35&&a<235)||(Math.abs(a-200)<35&&b>65&&b<335)||(Math.abs(b-300)<35&&a>165))return;
- towers.push({x:a,y:b,k:chosen,d:t[3],f:t[4],r:t[5],cost:t[1],cool:0});
- money-=t[1];
-};
-function step(){
- tick++;
- if(active&&spawn&&tick%35===0){
- let k=wave%5===0&&spawn===1?3:Math.random()*3|0,hp=k===3?100+wave*20:[3,8,18][k]+wave*2;
- enemies.push({x:0,y:100,s:0,k,hp,max:hp,slow:0,poison:0});spawn--;
+ let i=e.clientX*240/c.clientWidth,j=e.clientY*320/c.clientHeight,k=i/80|0;
+ if(s.length){
+  if(j>284)maps();
+  else if(j>=24)p=s[(j-24)/86|0],s=[];
+  return
  }
- enemies.forEach(e=>{
- if(e.poison>0){e.hp-=.04;e.poison--}
- if(e.hp<=0)return;
- let p=P[e.s+1],d=Math.hypot(p[0]-e.x,p[1]-e.y),v=[1.3,.9,.5,.35][e.k]*(e.slow-->0?.45:1);
- if(d<=v){e.x=p[0];e.y=p[1];e.s++}
- else{e.x+=(p[0]-e.x)/d*v;e.y+=(p[1]-e.y)/d*v}
- if(e.s===3){e.out=true;lives-=e.k===3?3:1;if(lives<=0)dead=true}
- });
- towers.forEach(t=>{
- if(t.cool-->0)return;
- let e=enemies.find(e=>e.hp>0&&!e.out&&Math.hypot(e.x-t.x,e.y-t.y)<t.r);
- if(!e)return;
- (t.k===2?enemies.filter(q=>!q.out&&Math.hypot(q.x-e.x,q.y-e.y)<50):[e]).forEach(q=>{
- q.hp-=t.d;
- if(t.k===3)q.slow=100;
- if(t.k===4)q.poison=150;
- });
- t.cool=t.f;
- });
- enemies=enemies.filter(e=>{
- if(e.hp<=0&&!e.out){money+=[5,10,20,100][e.k];return false}
- return !e.out;
- });
- if(active&&!spawn&&!enemies.length){active=false;money+=20+wave*5}
+ if(h<=0)return location.reload();
+ if(j>=300){
+  if(!k)W();
+  else if(k==1)o=!o;
+  else if(q>=0&&g>=P(a[q]))g-=P(a[q]),a[q][3]++
+ }else if(j>=280)t=k,q=-1;
+ else{
+  let k=i/20|0,l=j/20|0,v=50*(t+1);
+  i=k*20+10;
+  j=l*20+10;
+  q=a.findIndex(a=>a[0]==i&&a[1]==j);
+  if(q<0&&g>=v&&!p.some(a=>a[0]==k&&a[1]==l)){
+   g-=v;
+   q=a.push([i,j,t,1,0])-1
+  }
+ }
+};
+
+function hit(a,k){
+ if(a[3]>0&&(a[3]-=k)<=0)g+=5+w*(a[5]?5:1)
 }
-function draw(){
- x.fillStyle="#396b39";x.fillRect(0,0,400,500);
- x.strokeStyle="#b99b72";x.lineWidth=45;x.beginPath();x.moveTo(...P[0]);P.slice(1).forEach(p=>x.lineTo(...p));x.stroke();
- towers.forEach(t=>{
- if(t===sel){x.strokeStyle="white";x.lineWidth=2;x.beginPath();x.arc(t.x,t.y,t.r,0,7);x.stroke()}
- x.fillStyle=T[t.k][2];x.beginPath();x.arc(t.x,t.y,14,0,7);x.fill();
- });
- enemies.forEach(e=>{
- x.fillStyle=["lime","orange","darkred","black"][e.k];
- x.beginPath();x.arc(e.x,e.y,e.k===3?22:10+e.k*3,0,7);x.fill();
- x.fillStyle="red";x.fillRect(e.x-15,e.y-25,30,4);
- x.fillStyle="lime";x.fillRect(e.x-15,e.y-25,30*Math.max(0,e.hp/e.max),4);
- });
- info.textContent=`$${money|0} | Lives: ${lives} | Wave: ${wave}`+(dead?" GAME OVER":pause?" PAUSED":"");
-}
+
 function loop(){
- if(!dead&&!pause)for(let i=0;i<speed;i++)step();
- draw();requestAnimationFrame(loop);
+ B(0,0,240,320,"#222");
+ if(s.length){
+  e("CHOOSE MAP",120,14);
+  s.forEach((a,i)=>{
+   M(a,84,24+i*86,6);
+   e("MAP "+(i+1),42,69+i*86)
+  });
+  U("NEW MAPS",2,298,236)
+ }else{
+  M(p,0,0,20);
+  if(h>0){
+   if(o)W();
+   if(n&&f++%25==0){
+        let k=n--==1&&w>1&&!(w&w-1),z=8*1.2**(w-1)*(k?8:1);
+        m.push([p[0][0]*20+10,p[0][1]*20+10,1,z,z,k])
+    }
+   m.forEach(a=>{
+    let z=p[a[2]];
+    if(!z){
+     h-=a[5]?5:1;
+     a[3]=0;
+     return
+    }
+    let i=z[0]*20+10-a[0],j=z[1]*20+10-a[1],k=Math.hypot(i,j),v=a[5]?.45:.7+Math.min(w*.025,.8);
+    if(k<=v)a[2]++;
+    v=Math.min(1,v/(k||1));
+    a[0]+=i*v;
+    a[1]+=j*v
+   });
+   a.forEach(a=>{
+    if(a[4]-->0)return;
+    let k=a[2],h=R(a),z=0;
+    m.forEach(b=>{
+     if(b[3]>0&&d(a,b)<h&&(!z||b[2]>z[2]))z=b
+    });
+    if(!z)return;
+    a[4]=Math.max(2,A[k][4]/a[3]**(A[k][5]-1));
+    let v=D(a);
+    if(k==1)m.forEach(b=>{if(d(a,b)<h)hit(b,v)});
+    else hit(z,v);
+    b.push([a[0],a[1],k==1?h:z[0],z[1],k,k==1?12:6])
+   });
+   m=m.filter(a=>a[3]>0)
+  }
+  if(q>=0){
+   let z=a[q];
+   x.strokeStyle=K(z);
+   x.beginPath();
+   x.arc(z[0],z[1],R(z),0,7);
+   x.stroke()
+  }
+  a.forEach(T);
+  m.forEach(E);
+  b.forEach(a=>{
+   x.strokeStyle=["#8cf","#c8f","#fc8"][a[4]];
+   x.beginPath();
+   if(a[4]==1)x.arc(a[0],a[1],a[2]*(13-a[5])/12,0,7);
+   else{
+    x.moveTo(a[0],a[1]);
+    x.lineTo(a[2],a[3])
+   }
+   x.stroke();
+   a[5]--
+  });
+  b=b.filter(a=>a[5]>0);
+  B(0,0,240,14,"#222");
+  e("$"+g+" | HP "+Math.max(0,h)+" | Wave "+w,120,10);
+  if(q>=0){
+   let z=a[q];
+   B(0,265,240,15,"#222");
+   e(N[z[2]]+" Lv."+z[3]+" DMG "+D(z).toFixed(1)+" RNG "+R(z),120,275)
+  }
+  N.forEach((s,i)=>U(s+" $"+50*(i+1),i*80,280,79,t==i));
+  U("WAVE "+(w+1),0,300,79);
+  U("AUTO "+(o?"ON":"OFF"),80,300,79,o);
+  U(q<0?"UPGRADE":"UP $"+P(a[q]),160,300,80);
+  if(h<=0){
+   B(20,105,200,70,"#222");
+   e("GAME OVER - Wave "+w,120,130);
+   e("Tap to restart",120,150)
+  }
+ }
+ requestAnimationFrame(loop)
 }
-loop();
+requestAnimationFrame(loop)
 </script>
 </body>
-</html>

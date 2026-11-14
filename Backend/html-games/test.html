@@ -1,0 +1,76 @@
+
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="background:#222;color:white;text-align:center;font-family:sans-serif">
+<h2>Compressed Sprite Test</h2>
+<canvas id=c width=320 height=400 style="width:100%;max-width:480px;image-rendering:pixelated"></canvas>
+<script>
+let x=c.getContext("2d");
+
+function r(a,b,w,h,s){
+ x.fillStyle=s;
+ x.fillRect(a,b,w,h)
+}
+
+function sprite(n,a,b,h,w){
+ let s=n?`hsl(${h},55%,55%)`:"#eb9";
+ let p=`hsl(${h},55%,35%)`;
+
+ if(n==2){
+  // Slime
+  r(a+4,b+5-w,8,11,s);
+  r(a+2,b+8-w,12,7,s);
+  r(a+6,b+6-w,4,2,"#fff8");
+  r(a+5,b+10-w,2,2,"#222");
+  r(a+9,b+10-w,2,2,"#222");
+ }else{
+  // Shared human and goblin body
+  r(a+4,b+1-w,8,8,s);
+  r(a+2,b+9-w,12,4,p);
+  r(a+2,b+10-w,2,3,s);
+  r(a+12,b+10-w,2,3,s);
+  r(a+4,b+13-w,3,3,"#432");
+  r(a+9,b+13-w,3,3,"#432");
+
+  if(n){
+   // Goblin ears
+   r(a+1,b+3-w,3,3,s);
+   r(a+12,b+3-w,3,3,s)
+  }else{
+   // Human hair
+   r(a+3,b-w,10,3,"#643")
+  }
+
+  // Eyes
+  r(a+5,b+4-w,2,2,"#222");
+  r(a+9,b+4-w,2,2,"#222")
+ }
+}
+
+function loop(t){
+ x.clearRect(0,0,320,400);
+ x.save();
+ x.scale(4,4);
+
+ let names=["Human","Goblin","Slime"];
+
+ for(let n=0;n<3;n++){
+  let b=8+n*32;
+
+  x.fillStyle="white";
+  x.font="4px sans-serif";
+  x.fillText(names[n],4,b-2);
+
+  for(let i=0;i<4;i++){
+   sprite(n,4+i*19,b,[210,110,10,280][i],i==3?t/180&1:0)
+  }
+ }
+
+ x.restore();
+ requestAnimationFrame(loop)
+}
+requestAnimationFrame(loop)
+</script>
+</body>
+</html>

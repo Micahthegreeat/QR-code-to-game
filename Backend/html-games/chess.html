@@ -1,16 +1,11 @@
 
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <body style="margin:0;background:#222;color:white;text-align:center">
-<div id="t">Chess</div><canvas id="c" width="400" height="400" style="width:100%;touch-action:none"></canvas>
-<button onclick="init()">Restart</button>
+<div id="t">You</div><canvas id="c" width="400" height="400" style="width:100%;touch-action:none"></canvas>
 <script>
-let x=c.getContext('2d'),b,s,e,R,turn,done;
+let x=c.getContext('2d'),b=('rnbqkbnrpppppppp'+'.'.repeat(32)+'PPPPPPPPRNBQKBNR').split(''),s=-1,e=-1,R='KQkq',turn=1,done=0;
 let D=[[1,0],[-1,0],[0,1],[0,-1]],A=[[1,1],[1,-1],[-1,1],[-1,-1]],N=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
 let side=p=>p=='.'?0:p==p.toUpperCase()?1:-1,ok=(r,f)=>r>=0&&r<8&&f>=0&&f<8;
-function init(){
- b=('rnbqkbnrpppppppp'+'.'.repeat(32)+'PPPPPPPPRNBQKBNR').split('');
- s=-1;e=-1;R='KQkq';turn=1;done=0;t.textContent='Your turn';draw()
-}
 function hit(B,j,col){
  let r=j>>3,f=j%8;
  for(let i=0;i<64;i++){
@@ -62,7 +57,7 @@ function moves(col=turn,B=b){
  else if(j==e)add(y,f+d,'e')
  }
  }else{
- let dirs=k=='n'?N:k=='b'?A:k=='r'?D:k=='q'?D.concat(A):D.concat(A);
+ let dirs=k=='n'?N:k=='b'?A:k=='r'?D:D.concat(A);
  for(let [dy,dx] of dirs){
  let y=r+dy,z=f+dx;
  while(ok(y,z)){
@@ -91,9 +86,8 @@ function play(m){
  if(i==a||j==a)R=R.replace(q,'');
  e=p.toLowerCase()=='p'&&Math.abs(j-i)==16?(i+j)/2:-1;
  b=put(b,m);turn=-turn;s=-1;
- let a=moves();
- done=!a.length;
- t.textContent=done?(check(b,turn)?(turn==1?'Black':'White')+' wins':'Draw'):turn==1?'Your turn':'Computer'+(check(b,turn)?' - Check':'');
+ done=!moves().length;
+ t.textContent=done?(check(b,turn)?turn==1?'AI wins':'You win':'Draw'):turn==1?'You':'AI'+(check(b,turn)?' Check':'');
  draw()
 }
 function draw(){
@@ -116,13 +110,23 @@ c.onpointerdown=a=>{
  if(m){
  play(m);
  if(!done)setTimeout(()=>{
- let a=moves(),v={p:1,n:3,b:3,r:5,q:9,k:100};
- a.sort((u,w)=>(v[b[w[1]].toLowerCase()]||0)-(v[b[u[1]].toLowerCase()]||0));
- play(a[Math.random()*Math.min(3,a.length)|0])
+ let a=moves(),v=p=>[1,3,3,5,9,100]['pnbrqk'.indexOf(p.toLowerCase())]||0,best=-1e9,choice;
+ for(let m of a){
+ let B=put(b,m),j=m[1],gain=v(b[j]),replies=moves(1,B),danger=0;
+ for(let q of replies){
+ let loss=v(B[q[1]]);
+ if(loss&&hit(put(B,q),q[1],-1))loss=Math.max(0,loss-v(B[q[0]]));
+ danger=Math.max(danger,loss)
+ }
+ let chk=check(B,1);
+ let score=chk&&!replies.length?999:gain-danger*.9+chk*.3+(b[m[0]]=='p'?(j>>3)*.05:0)+(7-Math.abs(j%8-3.5)-Math.abs((j>>3)-3.5))*.1+Math.random()*.1;
+ if(score>best){best=score;choice=m}
+ }
+ play(choice)
  },200)
  }
 };
-init()
+draw()
 </script>
 </body>
 </html>

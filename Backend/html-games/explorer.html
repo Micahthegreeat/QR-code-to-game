@@ -1,0 +1,231 @@
+
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;overflow:hidden;touch-action:none">
+<canvas id=c width=640 height=768 style="width:100vw;height:100dvh"></canvas>
+<script>
+let x=c.getContext("2d"),r=Math.random,m=[],p=[0,0,0,210],q,o,t,g=0,k=0,s=[],l=0,start=Date.now();
+x.scale(4,4);
+x.textAlign="center";
+x.font="7px sans-serif";
+
+function n(a){
+ return ["Poor","Worker","Rich","Noble"][a[4]]+" "+a[5]
+}
+
+for(let i=0;i<80;i++){
+ let a=r()*3|0;
+ m.push([
+ r()*752-376,r()*752-376,a,r()*360|0,r()*(4-a)|0,
+ "Al Bo Cor Dra El Fin Grib Hor Lo Zu".split(" ")[i%10]+
+ "wick bo ren lin nok dor vin ra".split(" ")[i/10|0],
+ (i+7)%80,(i+31)%80,r()*400,0,0,-1,0,0,0
+ ])
+}
+
+m.forEach(a=>{
+ let i=m.findIndex(b=>b[2]!=a[2]&&b[4]>a[4]&&r()<.2);
+ if(i>=0)a[7]=i
+});
+
+function d(a,b){
+ return Math.hypot(a[0]-b[0],a[1]-b[1])
+}
+
+function b(a){
+ return Math.min(376,Math.max(-376,a))
+}
+
+function v(a,i,j,k){
+ let h=Math.hypot(i,j)||1,u=b(a[0]+i/h*k),v=b(a[1]+j/h*k);
+ a[12]=u!=a[0]||v!=a[1];
+ a[0]=u;
+ a[1]=v
+}
+
+function f(a,i,j,w){
+ let h=a[2];
+ i=i|0;
+ j=(j|0)-w;
+ x.fillStyle=h?`hsl(${a[3]},55%,55%)`:`#eb9`;
+ if(h==2){
+  x.fillRect(i+4,j+5,8,10);
+  x.fillRect(i+2,j+8,12,7)
+ }else{
+  x.fillRect(i+3,j,10,9);
+  if(h)x.fillRect(i,j+3,16,3);
+  x.fillStyle=`hsl(${a[3]},55%,35%)`;
+  x.fillRect(i+2,j+9,12,4);
+  x.fillStyle=`#643`;
+  if(!h)x.fillRect(i+3,j,10,3);
+  x.fillRect(i+4,j+13,3,3);
+  x.fillRect(i+9,j+13,3,3)
+ }
+ x.fillStyle=`#222`;
+ j+=h==2?10:4;
+ x.fillRect(i+5,j,2,2);
+ x.fillRect(i+9,j,2,2)
+}
+
+function e(s,i,j,h="#fff"){
+ x.fillStyle=h;
+ x.fillText(s,i,j)
+}
+
+
+function ai(z,i){
+ let h=d(z,p);
+ if(h>24)z[13]&=2;
+ if(h<13&&!(z[13]&1)&&!o){
+  z[13]=3;
+  s=[n(z)];
+  if(q&&m[q[7]]==z){
+   if(z[4]>q[4])z[4]--,q[4]++,k++;
+   s.push("Paid "+q[5]);
+   q[14]+=2;
+   z[14]--;
+   q[7]=-1;
+   q=0;
+   g++
+  }else if(z[7]>=0){
+   let a=m[z[7]];
+   s.push(a[5]+(a[4]>z[4]?" exploits us.":" betrayed me."));
+   if(!q)o=z,t=0,s.push("Help me?")
+  }else s.push("Thanks.");
+  l=300
+ }
+
+ z[12]=0;
+ if(z==o||z[8]-->0)return;
+
+ if(z[11]>=0||z[8]<-180){
+  z[11]=-1;
+  z[8]=240+r()*480;
+  z[9]=r()-.5;
+  z[10]=r()-.5;
+  return
+ }
+
+ let j=m.findIndex((a,j)=>j!=i&&a!=o&&a[11]<0&&d(a,z)<16);
+
+ if(j>=0){
+  let a=m[j],k=z[7]==j||a[7]==i?2:z[6]==j||a[6]==i?0:z[4]!=a[4]?4:6;
+  z[11]=k+(k==4&&z[4]>a[4]?1:0);
+  a[11]=2*k+1-z[11];
+  z[8]=a[8]=180;
+  i=z[0]-a[0];
+  j=z[1]-a[1];
+  v(z,i,j,8);
+  v(a,-i,-j,8);
+  z[12]=a[12]=0
+ }else v(z,z[9],z[10],.25)
+}
+
+
+function u(e){
+ return [e.clientX*160/c.clientWidth-80,e.clientY*192/c.clientHeight-96]
+}
+
+c.onpointerdown=e=>{
+ let a=u(e);
+ if(!o)t=a;
+ else if(a[1]>70){
+  o[14]+=a[0]<0?1:-1;
+  if(a[0]<0)q=o;
+  o=t=l=0
+ }
+ c.setPointerCapture(e.pointerId)
+};
+
+c.onpointermove=e=>{if(t)t=u(e)};
+c.onpointerup=c.onpointercancel=()=>t=0;
+
+function panel(s,j,h,k){
+ x.fillStyle=h;
+ x.fillRect(0,j,160,192-j);
+ s.forEach((a,i)=>e(a,80,j+10+i*k))
+}
+
+function end(){
+ let a=0,b=0,c=0,j=[0,0,0];
+ m.forEach(z=>{
+  a+=z[13]>>1;
+  b+=z[14]>0;
+  c+=z[14]<0;
+  j[z[2]]+=z[14]
+ });
+ let i=k>=5&&b>c?0:k>=2||b>c?1:2;
+ panel([
+ ["United Kingdom","Fragile Peace","Great Collapse"][i],
+ ["Peace at last.","The crown holds.","The kingdom burns."][i],
+ "",
+ "Met: "+a+"/80",
+ "Friends: "+b,
+ "Enemies: "+c,
+ "Quests: "+g,
+ "Gold: "+g*10,
+ "Transfers: "+k,
+ "",
+ "Human: "+j[0],
+ "Goblin: "+j[1],
+ "Slime: "+j[2]
+ ],0,["#253","#443","#422"][i],14)
+}
+
+function loop(h){
+ let y=300-((Date.now()-start)/1000|0);
+ if(y<=0)return end();
+
+ p[12]=0;
+ if(t&&!o&&Math.hypot(...t)>3)v(p,...t,.75);
+
+ let a=p[0]-80|0,b=p[1]-96|0,w=h/140&1;
+
+ for(let j=b>>4;j<b/16+12;j++)
+ for(let i=a>>4;i<a/16+10;i++){
+  let z=Math.max(i,j,-i-1,-j-1),u=i*16-a,v=j*16-b;
+  let h=Math.abs(Math.sin(i/8)+Math.sin(j/12))<.16;
+  x.fillStyle=z>24?"#222":z==24?"#888":h?"#964":"#694";
+  x.fillRect(u,v,16,16);
+  if(z<24&&!h){
+   x.fillStyle=`#583`;
+   x.fillRect(u+3,v+5,2,3)
+  }
+ }
+
+ m.forEach(ai);
+
+ [...m,p].forEach(z=>{
+  let i=z[0]-a,j=z[1]-b;
+  f(z,i-8,j-8,z[12]?w:0);
+  if(z==p)return;
+  e(n(z),i,j-10,z[14]>0?"#afa":z[14]<0?"#f98":"#fff");
+  if(z[11]>=0)e(
+   "Hi!|Friend!|Traitor!|Leave!|Unfair!|Earn it!|Unite!|Yes!".split("|")[z[11]],
+   i,j-19,z[11]>=2&&z[11]<6?"#f98":"#afa"
+  )
+ });
+
+ x.fillStyle=`#222`;
+ x.fillRect(0,0,160,12);
+ e(y+"s | Gold:"+g*10+(q?" | "+m[q[7]][5]:""),80,9);
+
+ if(q){
+  let a=m[q[7]],h=65/(d(p,a)||1);
+  e("*",80+(a[0]-p[0])*h,96+(a[1]-p[1])*h)
+ }
+
+ if(o||l-->0){
+  panel(s,136,"#222",9);
+  if(o){
+   for(let i=0;i<2;i++){
+    x.fillStyle=i?"#833":"#375";
+    x.fillRect(2+i*80,166,76,24);
+    e(i?"DECLINE":"ACCEPT",40+i*80,181)
+   }
+  }
+ }
+ requestAnimationFrame(loop)
+}
+requestAnimationFrame(loop)
+</script>
+</body>

@@ -1,0 +1,251 @@
+
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#222;touch-action:none;overflow:hidden">
+<canvas id=c width=480 height=640 style="width:100vw;height:100dvh"></canvas>
+<script>
+let x=c.getContext("2d"),r=Math.random,p=[120,160],m=[],b=[],a=[],v=[],s=[],t,h=100,k=0,n=0,w=0,f=0,j=0,o=[],g=0,l=0;
+x.scale(2,2);
+x.textAlign="center";
+x.font="9px sans-serif";
+
+let T=["On hit","On kill","When hurt","While moving","Every 3 seconds","On critical"];
+let E=["Blast","Lightning","Freeze","Heal","Orb","Missile"];
+let C=["#fa5","#6df","#acf","#6f9","#fc6","#f7f"];
+
+function d(a,b){
+ return Math.hypot(a[0]-b[0],a[1]-b[1])
+}
+
+function e(s,a,b,h="#fff"){
+ x.fillStyle=h;
+ x.fillText(s,a,b)
+}
+
+function near(p){
+ let a=0,h=500;
+ m.forEach(b=>{
+  let k=d(p,b);
+  if(b[2]>0&&k<h)a=b,h=k
+ });
+ return a
+}
+
+function fire(p,a,h){
+ if(a)b.push([p[0],p[1],a,h])
+}
+
+function event(i,p,z){
+ if(z>4||j++>160)return;
+ a.forEach(k=>{
+  if(k/6|0!=i)return;
+  let h=k%6;
+  if(h==3){
+   p0();
+   return
+  }
+  if(h==4){
+   o.push([f+r()*6,240]);
+   return
+  }
+  if(h==5){
+   fire(p,near(p),2);
+   return
+  }
+  v.push([p[0],p[1],h,15]);
+  if(h==1){
+   let a=near(p);
+   if(a)hit(a,3,z+1)
+  }else m.forEach(a=>{
+   if(d(a,p)<40){
+    if(h==2)a[3]=120;
+    else hit(a,2,z+1)
+   }
+  })
+ })
+}
+
+function p0(){
+ h=Math.min(100,h+3)
+}
+
+function hit(a,i,z=0){
+ if(a[2]<=0)return;
+ a[2]-=i;
+ event(0,a,z);
+ if(a[2]<=0&&!a[5]){
+  a[5]=1;
+  k++;
+  g++;
+  event(1,a,z)
+ }
+}
+
+function spawn(){
+ let i=r()*4|0;
+ m.push([
+ i==0?0:i==1?240:r()*240,
+ i==2?0:i==3?320:r()*320,
+ 3+(n/3|0),
+ 0,r()*.5+.35+n*.035,0
+ ])
+}
+
+function u(e){
+ return [e.clientX*240/c.clientWidth,e.clientY*320/c.clientHeight]
+}
+
+c.onpointerdown=e=>{
+ let i=u(e);
+ if(s.length){
+  let j=(i[1]-105)/50|0;
+  if(i[1]>=105&&j<3){
+   a.push(s[j]);
+   s=[];
+   n++
+  }
+ }else t=i;
+ c.setPointerCapture(e.pointerId)
+};
+c.onpointermove=e=>{if(t)t=u(e)};
+c.onpointerup=c.onpointercancel=()=>t=0;
+
+function loop(){
+ x.fillStyle=`#171923`;
+ x.fillRect(0,0,240,320);
+ j=0;
+
+ if(!s.length&&h>0&&!(w&&m.length==0)){
+  f++;
+  if(t){
+   let i=t[0]-p[0],j=t[1]-p[1],a=Math.hypot(i,j);
+   if(a>3){
+    p[0]+=i/a*1.6;
+    p[1]+=j/a*1.6;
+    if(f%30==0)event(3,p,0)
+   }
+  }
+
+  if(f%180==0)event(4,p,0);
+  if(f%24==0){
+   let a=near(p);
+   if(a)fire(p,a,1)
+  }
+
+  if(!w&&f%Math.max(12,55-n*3)==0)spawn();
+
+  if(f%1200==0&&!w){
+   s=[r()*36|0,r()*36|0,r()*36|0];
+   t=0
+  }
+
+  if(f>=18000&&!w){
+   w=1;
+   m.push([120,30,180,0,.65,0,1])
+  }
+
+  m.forEach(a=>{
+   if(a[2]<=0)return;
+   let i=p[0]-a[0],j=p[1]-a[1],b=Math.hypot(i,j)||1;
+   if(a[3]>0)a[3]--;
+   else{
+    a[0]+=i/b*a[4];
+    a[1]+=j/b*a[4]
+   }
+   if(b<15&&f%30==0){
+    h-=a[6]?12:3;
+    event(2,p,0)
+   }
+  });
+
+  b.forEach(a=>{
+   let z=a[2],i=z[0]-a[0],j=z[1]-a[1],h=Math.hypot(i,j)||1;
+   if(z[2]<=0)a[3]=0;
+   else if(h<6&&a[3]){
+    let i=r()<.15;
+    hit(z,a[3]*(i?3:1));
+    if(i)event(5,z,0);
+    a[3]=0
+   }else{
+    a[0]+=i/h*5;
+    a[1]+=j/h*5
+   }
+  });
+
+  o.forEach(a=>{
+   a[1]--;
+   let i=p[0]+Math.cos(f/12+a[0])*25,j=p[1]+Math.sin(f/12+a[0])*25;
+   if(f%15==0)m.forEach(z=>{
+    if(d(z,[i,j])<12)hit(z,1)
+   })
+  });
+
+  m=m.filter(a=>a[2]>0);
+  b=b.filter(a=>a[3]);
+  o=o.filter(a=>a[1]>0);
+  v.forEach(a=>a[3]--);
+  v=v.filter(a=>a[3]>0)
+ }
+
+ m.forEach(a=>{
+  let i=a[6]?14:6;
+  x.fillStyle=a[3]>0?"#acf":a[6]?"#b6f":"#e56";
+  x.fillRect(a[0]-i,a[1]-i,i*2,i*2)
+ });
+
+ v.forEach(a=>{
+  x.strokeStyle=C[a[2]];
+  x.beginPath();
+  x.arc(a[0],a[1],(16-a[3])*3,0,7);
+  x.stroke()
+ });
+
+ b.forEach(a=>{
+  x.fillStyle=`#fd8`;
+  x.fillRect(a[0]-2,a[1]-2,4,4)
+ });
+
+ o.forEach(a=>{
+  x.fillStyle=`#fc6`;
+  x.fillRect(p[0]+Math.cos(f/12+a[0])*25-3,p[1]+Math.sin(f/12+a[0])*25-3,6,6)
+ });
+
+ x.fillStyle=`#6e9`;
+ x.fillRect(p[0]-6,p[1]-6,12,12);
+
+ x.fillStyle=`#292c39`;
+ x.fillRect(0,0,240,27);
+ x.fillStyle=`#633`;
+ x.fillRect(5,5,100,7);
+ x.fillStyle=`#6e9`;
+ x.fillRect(5,5,Math.max(0,h),7);
+ e(w?"BOSS":Math.max(0,300-(f/60|0))+"s",170,11);
+ e("Kills: "+k+" | Powers: "+a.length,120,23);
+
+ if(s.length){
+  x.fillStyle=`#222`;
+  x.fillRect(10,60,220,222);
+  e("CHOOSE A POWER",120,85);
+  s.forEach((a,i)=>{
+   let j=105+i*50;
+   x.fillStyle=`#394052`;
+   x.fillRect(20,j,200,45);
+   e(T[a/6|0],120,j+15);
+   e(E[a%6],120,j+32,C[a%6])
+  })
+ }
+
+ if(h<=0||w&&!m.length){
+  x.fillStyle=`#222`;
+  x.fillRect(0,0,240,320);
+  e(h>0?"CHAIN MASTER":"OVERRUN",120,35);
+  e("Kills: "+k,120,52);
+  e("Your build",120,72);
+  a.forEach((a,i)=>e(T[a/6|0]+" - "+E[a%6],120,90+i*13,C[a%6]));
+  return
+ }
+
+ requestAnimationFrame(loop)
+}
+requestAnimationFrame(loop)
+</script>
+</body>

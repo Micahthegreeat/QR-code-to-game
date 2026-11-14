@@ -1,0 +1,128 @@
+
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#222;color:white;text-align:center">
+<div id="t">Chess</div><canvas id="c" width="400" height="400" style="width:100%;touch-action:none"></canvas>
+<button onclick="init()">Restart</button>
+<script>
+let x=c.getContext('2d'),b,s,e,R,turn,done;
+let D=[[1,0],[-1,0],[0,1],[0,-1]],A=[[1,1],[1,-1],[-1,1],[-1,-1]],N=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
+let side=p=>p=='.'?0:p==p.toUpperCase()?1:-1,ok=(r,f)=>r>=0&&r<8&&f>=0&&f<8;
+function init(){
+ b=('rnbqkbnrpppppppp'+'.'.repeat(32)+'PPPPPPPPRNBQKBNR').split('');
+ s=-1;e=-1;R='KQkq';turn=1;done=0;t.textContent='Your turn';draw()
+}
+function hit(B,j,col){
+ let r=j>>3,f=j%8;
+ for(let i=0;i<64;i++){
+ let p=B[i];if(side(p)!=col)continue;
+ let y=i>>3,z=i%8,a=r-y,d=f-z,k=p.toLowerCase();
+ if(k=='p'&&a==-col&&Math.abs(d)==1)return 1;
+ if(k=='n'&&Math.abs(a)*Math.abs(d)==2)return 1;
+ if(k=='k'&&Math.max(Math.abs(a),Math.abs(d))==1)return 1;
+ if('brq'.includes(k)){
+ if(k=='b'&&Math.abs(a)!=Math.abs(d)||k=='r'&&a&&d||k=='q'&&a&&d&&Math.abs(a)!=Math.abs(d))continue;
+ let u=Math.sign(a),v=Math.sign(d),h=y+u,g=z+v;
+ while(h!=r||g!=f){if(B[h*8+g]!='.')break;h+=u;g+=v}
+ if(h==r&&g==f)return 1
+ }
+ }return 0
+}
+function check(B,col){return hit(B,B.indexOf(col==1?'K':'k'),-col)}
+function put(B,m){
+ let C=B.slice(),[i,j,k]=m,p=C[i],col=side(p);
+ C[j]=p;C[i]='.';
+ if(k=='e')C[j+8*col]='.';
+ if(k=='c'){
+ let d=j>i?1:-1,h=i+(d==1?3:-4);
+ C[i+d]=C[h];C[h]='.'
+ }
+ if(p.toLowerCase()=='p'&&(j<8||j>=56))C[j]=col==1?'Q':'q';
+ return C
+}
+function moves(col=turn,B=b){
+ let out=[];
+ for(let i=0;i<64;i++){
+ let p=B[i],k=p.toLowerCase();if(side(p)!=col)continue;
+ let r=i>>3,f=i%8,L=[];
+ function add(y,z,q=''){
+ if(!ok(y,z))return 0;
+ let j=y*8+z,v=B[j];
+ if(side(v)==col||v.toLowerCase()=='k')return 0;
+ L.push([i,j,q]);return v=='.'
+ }
+ if(k=='p'){
+ let y=r-col;
+ if(ok(y,f)&&B[y*8+f]=='.'){
+ add(y,f);
+ if(r==(col==1?6:1)&&B[(r-2*col)*8+f]=='.')add(r-2*col,f)
+ }
+ for(let d of [-1,1])if(ok(y,f+d)){
+ let j=y*8+f+d;
+ if(side(B[j])==-col)add(y,f+d);
+ else if(j==e)add(y,f+d,'e')
+ }
+ }else{
+ let dirs=k=='n'?N:k=='b'?A:k=='r'?D:k=='q'?D.concat(A):D.concat(A);
+ for(let [dy,dx] of dirs){
+ let y=r+dy,z=f+dx;
+ while(ok(y,z)){
+ if(!add(y,z)||k=='n'||k=='k')break;
+ y+=dy;z+=dx
+ }
+ }
+ if(k=='k'&&f==4&&r==(col==1?7:0)&&!check(B,col)){
+ for(let d of [1,-1]){
+ let q=col==1?(d==1?'K':'Q'):(d==1?'k':'q'),h=r*8+(d==1?7:0);
+ if(!R.includes(q)||B[h]!=(col==1?'R':'r'))continue;
+ let clear=1;
+ for(let z=4+d;z!=(d==1?7:0);z+=d)if(B[r*8+z]!='.')clear=0;
+ if(clear&&!hit(B,i+d,-col)&&!hit(B,i+2*d,-col))L.push([i,i+2*d,'c'])
+ }
+ }
+ }
+ for(let m of L)if(!check(put(B,m),col))out.push(m)
+ }return out
+}
+function play(m){
+ let [i,j]=m,p=b[i];
+ if(p=='K')R=R.replace(/[KQ]/g,'');
+ if(p=='k')R=R.replace(/[kq]/g,'');
+ for(let [a,q] of [[63,'K'],[56,'Q'],[7,'k'],[0,'q']])
+ if(i==a||j==a)R=R.replace(q,'');
+ e=p.toLowerCase()=='p'&&Math.abs(j-i)==16?(i+j)/2:-1;
+ b=put(b,m);turn=-turn;s=-1;
+ let a=moves();
+ done=!a.length;
+ t.textContent=done?(check(b,turn)?(turn==1?'Black':'White')+' wins':'Draw'):turn==1?'Your turn':'Computer'+(check(b,turn)?' - Check':'');
+ draw()
+}
+function draw(){
+ for(let i=0;i<64;i++){
+ let r=i>>3,f=i%8,p=b[i];
+ x.fillStyle=i==s?'#dd6':(r+f)%2?'#769656':'#eeeed2';
+ x.fillRect(f*50,r*50,50,50);
+ if(p!='.'){
+ x.font='42px serif';x.textAlign='center';
+ x.fillStyle=side(p)==1?'white':'black';
+ x.fillText('♚♛♜♝♞♟♔♕♖♗♘♙'['kqrbnpKQRBNP'.indexOf(p)],f*50+25,r*50+40)
+ }
+ }
+}
+c.onpointerdown=a=>{
+ if(done||turn!=1)return;
+ let q=c.getBoundingClientRect(),j=(Math.floor((a.clientY-q.top)*8/q.height)*8+Math.floor((a.clientX-q.left)*8/q.width));
+ if(side(b[j])==1){s=j;draw();return}
+ let m=moves().find(m=>m[0]==s&&m[1]==j);
+ if(m){
+ play(m);
+ if(!done)setTimeout(()=>{
+ let a=moves(),v={p:1,n:3,b:3,r:5,q:9,k:100};
+ a.sort((u,w)=>(v[b[w[1]].toLowerCase()]||0)-(v[b[u[1]].toLowerCase()]||0));
+ play(a[Math.random()*Math.min(3,a.length)|0])
+ },200)
+ }
+};
+init()
+</script>
+</body>
+</html>

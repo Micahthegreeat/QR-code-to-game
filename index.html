@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QR HTML Decoder</title>
+<title>QR Game Decoder</title>
 
 <style>
     * {
@@ -38,7 +37,7 @@
     }
 
     .decoder {
-        width: min(90vw, 440px);
+        width: min(90vw,440px);
         padding: 24px;
         border: 1px solid #334155;
         border-radius: 12px;
@@ -54,8 +53,15 @@
     }
 
     @keyframes pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.5; transform: scale(0.95); }
+        0%,100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        50% {
+            opacity: 0.5;
+            transform: scale(0.95);
+        }
     }
 
     #status {
@@ -129,26 +135,29 @@
 <body>
 
 <div id="loading">
-    <h1>QR HTML DECODER</h1>
+    <h1>QR GAME DECODER</h1>
 
     <div class="decoder">
         <div class="icon">▣</div>
 
-        <div id="status">Initializing decoder...</div>
+        <div id="status">
+            Initializing decoder...
+        </div>
 
         <div class="progress-container">
             <div id="progress"></div>
         </div>
 
         <div id="percent">0%</div>
-
         <div id="terminal"></div>
-
         <div id="error"></div>
     </div>
 
     <div id="home">
-        No encoded page found in URL.
+        No encoded game found in URL.
+        <p>
+            <a href="/compiler.html">QG Compiler</a>
+        </p>
     </div>
 </div>
 
@@ -163,99 +172,114 @@
 "use strict";
 
 // =============================================
-// CONFIGURATION - CHANGE THESE VALUES
+// CONFIGURATION
 // =============================================
 
-// Location of your shared Huffman tree.
-// Relative to the website root, not the URL path.
 const TREE_DIRECTORY = "/Backend/trees/";
 
-// The URL format is:
-// https://qr.micahknox.com/0/BASE39_DATA
-//
-// Also works with:
-// http://localhost:8000/0/BASE39_DATA
-// Tree ID is read from the URL, e.g. /0/PAYLOAD or /1/PAYLOAD.
+const ALPHABET =
+    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ*+-";
 
-// Base-39 alphabet used by your Python script
-const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ*+-";
+const MAX_DECOMPRESSED_SIZE = 4000000;
+const MAX_SAVE_SIZE = 65536;
+
+const QG_DICT = [
+    "(", ")", "{", "}", "[", "]", ";", ",",
+    "=", "+", "-", "*", "/", "%", "<", ">",
+    "?", ":", ".", "let", "const", "fn",
+    "return", "if", "else", "while", "for"
+];
+
+const QG_EXTRA = [
+    "canvas", "blit", "tile", "clear", "text",
+    "frame", "rect", "Math", "floor", "null",
+    "true", "false", "==", "===", "!=", "!==",
+    "<=", ">=", "&&", "||", "++", "--", "+=",
+    "-=", "!", "var", "break", "continue",
+    "new", "undefined", "packedSprite", "on",
+    "setTimeout", "requestAnimationFrame",
+    "sin", "cos", "random", "length",
+    "document", "window",
+
+    // Input, randomness, storage
+    "touch", "rand", "seed", "hit", "clamp",
+    "choose", "shuffle", "save", "load",
+
+    // Graphics and array utilities
+    "poly", "rgb", "hsl", "len", "copy", "remove"
+];
 
 // =============================================
-// UI FUNCTIONS
+// UI
 // =============================================
 
-const statusElement = document.getElementById("status");
-const progressElement = document.getElementById("progress");
-const percentElement = document.getElementById("percent");
-const terminalElement = document.getElementById("terminal");
+const $ = id => document.getElementById(id);
 
-function setProgress(percent, message) {
-    progressElement.style.width = percent + "%";
-    percentElement.textContent = percent + "%";
-    statusElement.textContent = message;
+const gameFrame = $("game");
+
+function setProgress(percent,message) {
+    $("progress").style.width = percent + "%";
+    $("percent").textContent = percent + "%";
+    $("status").textContent = message;
 }
 
 function log(message) {
     const line = document.createElement("div");
-    line.textContent = "> " + message;
-    terminalElement.appendChild(line);
-    terminalElement.scrollTop = terminalElement.scrollHeight;
 
-    while (terminalElement.children.length > 7) {
-        terminalElement.firstChild.remove();
+    line.textContent = "> " + message;
+
+    $("terminal").appendChild(line);
+
+    $("terminal").scrollTop =
+        $("terminal").scrollHeight;
+
+    while($("terminal").children.length > 7) {
+        $("terminal").firstChild.remove();
     }
 }
 
-// Give the browser an opportunity to update the UI.
 function nextFrame() {
     return new Promise(resolve => {
         requestAnimationFrame(() => {
-            setTimeout(resolve, 0);
+            setTimeout(resolve,0);
         });
     });
 }
 
 // =============================================
-// BASE-39 DECODER
+// SHARED BASE39 DECODER
 // =============================================
 
 function decodeBase39(encoded) {
-    if (!encoded) {
-        return new Uint8Array(0);
-    }
 
-    log("Reading Base-39 payload...");
-
-    // Preserve leading zero bytes.
     let leadingZeros = 0;
 
-    while (
-        leadingZeros < encoded.length &&
-        encoded[leadingZeros] === "0"
-    ) {
+    while(encoded[leadingZeros] === "0") {
         leadingZeros++;
     }
 
-    // Convert Base-39 into one large integer.
     let number = 0n;
 
-    for (const char of encoded) {
+    for(const char of encoded) {
+
         const digit = ALPHABET.indexOf(char);
 
-        if (digit === -1) {
+        if(digit < 0) {
             throw new Error(
-                "Invalid Base-39 character: " + char
+                "Invalid Base39 character: " + char
             );
         }
 
-        number = number * 39n + BigInt(digit);
+        number =
+            number * 39n + BigInt(digit);
     }
 
-    // Convert integer into bytes.
     const bytes = [];
 
-    while (number > 0n) {
+    while(number > 0n) {
+
         bytes.push(Number(number & 255n));
+
         number >>= 8n;
     }
 
@@ -265,214 +289,1307 @@ function decodeBase39(encoded) {
         leadingZeros + bytes.length
     );
 
-    result.set(bytes, leadingZeros);
+    result.set(bytes,leadingZeros);
 
-    log("Recovered " + result.length + " binary bytes");
+    log("Recovered " + result.length + " bytes");
 
     return result;
 }
 
 // =============================================
-// HUFFMAN DECODER
+// ORIGINAL HTML HUFFMAN DECODER
 // =============================================
 
-function decompressHuffman(data, tree) {
-    if (data.length < 4) throw new Error("Invalid Huffman file");
+function decompressHuffman(data,tree) {
+
+    if(data.length < 4) {
+        throw new Error("Invalid Huffman file");
+    }
 
     const originalLength = (
-        data[0] * 16777216 + (data[1] << 16) +
-        (data[2] << 8) + data[3]
+        data[0] * 16777216 +
+        (data[1] << 16) +
+        (data[2] << 8) +
+        data[3]
     ) >>> 0;
 
-    log("Expected output: " + originalLength + " bytes");
+    if(originalLength > MAX_DECOMPRESSED_SIZE) {
+        throw new Error("HTML output too large");
+    }
+
+    log(
+        "Expected output: " +
+        originalLength + " bytes"
+    );
+
     const output = new Uint8Array(originalLength);
-    if (originalLength === 0) return output;
 
-    // Tree strings store raw bytes as Latin-1, not UTF-8.
-    const tokenCache = new Map();
-
-    function tokenBytes(symbol) {
-        if (typeof symbol === "number") {
-            if (!Number.isInteger(symbol) || symbol < 0 || symbol > 255)
-                throw new Error("Invalid byte in Huffman tree");
-            return Uint8Array.of(symbol);
-        }
-        if (typeof symbol === "string" && symbol.length) {
-            if (!tokenCache.has(symbol)) {
-                const bytes = new Uint8Array(symbol.length);
-                for (let i = 0; i < symbol.length; i++) {
-                    const value = symbol.charCodeAt(i);
-                    if (value > 255) throw new Error("Invalid Latin-1 Huffman token");
-                    bytes[i] = value;
-                }
-                tokenCache.set(symbol, bytes);
-            }
-            return tokenCache.get(symbol);
-        }
-        throw new Error("Invalid Huffman token");
-    }
-
-    function append(symbol, offset) {
-        const bytes = tokenBytes(symbol);
-        if (offset + bytes.length > originalLength)
-            throw new Error("Decoded data exceeds expected length");
-        output.set(bytes, offset);
-        return offset + bytes.length;
-    }
-
-    if (typeof tree === "number" || typeof tree === "string") {
-        let offset = 0;
-        while (offset < originalLength) offset = append(tree, offset);
+    if(originalLength === 0) {
         return output;
     }
 
-    if (!Array.isArray(tree) || tree.length !== 2)
+    const tokenCache = new Map();
+
+    function tokenBytes(symbol) {
+
+        if(typeof symbol === "number") {
+
+            if(
+                !Number.isInteger(symbol) ||
+                symbol < 0 ||
+                symbol > 255
+            ) {
+                throw new Error("Invalid Huffman byte");
+            }
+
+            return Uint8Array.of(symbol);
+        }
+
+        if(typeof symbol === "string" && symbol.length) {
+
+            if(!tokenCache.has(symbol)) {
+
+                const bytes = new Uint8Array(
+                    symbol.length
+                );
+
+                for(let i=0;i<symbol.length;i++) {
+
+                    const value = symbol.charCodeAt(i);
+
+                    if(value > 255) {
+                        throw new Error(
+                            "Invalid Latin-1 token"
+                        );
+                    }
+
+                    bytes[i] = value;
+                }
+
+                tokenCache.set(symbol,bytes);
+            }
+
+            return tokenCache.get(symbol);
+        }
+
+        throw new Error("Invalid Huffman token");
+    }
+
+    function append(symbol,offset) {
+
+        const bytes = tokenBytes(symbol);
+
+        if(offset + bytes.length > originalLength) {
+            throw new Error(
+                "Decoded data exceeds expected length"
+            );
+        }
+
+        output.set(bytes,offset);
+
+        return offset + bytes.length;
+    }
+
+    if(
+        typeof tree === "number" ||
+        typeof tree === "string"
+    ) {
+
+        let offset = 0;
+
+        while(offset < originalLength) {
+            offset = append(tree,offset);
+        }
+
+        return output;
+    }
+
+    if(!Array.isArray(tree) || tree.length !== 2) {
         throw new Error("Invalid Huffman tree");
+    }
 
     let node = tree;
     let offset = 0;
-    for (let i = 4; i < data.length; i++) {
-        for (let bit = 7; bit >= 0; bit--) {
-            node = node[(data[i] >> bit) & 1];
-            if (node === undefined || node === null)
-                throw new Error("Invalid Huffman data or tree");
 
-            if (typeof node === "number" || typeof node === "string") {
-                offset = append(node, offset);
-                if (offset === originalLength) {
-                    log("Huffman decompression complete");
+    for(let i=4;i<data.length;i++) {
+
+        for(let bit=7;bit>=0;bit--) {
+
+            node = node[(data[i] >> bit) & 1];
+
+            if(node === undefined || node === null) {
+                throw new Error("Invalid Huffman data");
+            }
+
+            if(
+                typeof node === "number" ||
+                typeof node === "string"
+            ) {
+
+                offset = append(node,offset);
+
+                if(offset === originalLength) {
                     return output;
                 }
+
                 node = tree;
             }
         }
     }
-    throw new Error("Huffman data ended prematurely");
+
+    throw new Error(
+        "Huffman data ended prematurely"
+    );
 }
 
 // =============================================
-// GAME LOADER
+// HTML GAME LOADER
 // =============================================
 
-async function loadGame() {
-    try {
-        // Parse the URL before validating Base-39. URL-encoded characters
-        // such as %2B (+) and %2A (*) are allowed in the payload.
-        const path = window.location.pathname;
-        const match = path.match(/^\/(\d+)\/(.+?)\/?$/);
-        if (!match) {
-            setProgress(0, "Waiting for a valid encoded URL");
-            document.getElementById("home").style.display = "block";
-            log("Expected /TREE_ID/BASE39_DATA; received: " + path.slice(0, 100));
-            return;
+async function decodeHTMLGame(binary,treeId) {
+
+    const treeUrl =
+        TREE_DIRECTORY + treeId + ".json";
+
+    setProgress(35,"Downloading Huffman tree...");
+
+    log("Fetching " + treeUrl);
+
+    const response = await fetch(treeUrl);
+
+    if(!response.ok) {
+        throw new Error(
+            "Failed to fetch tree: HTTP " +
+            response.status
+        );
+    }
+
+    const treeText = await response.text();
+
+    if(treeText.trimStart().startsWith("<")) {
+        throw new Error(
+            "Huffman tree not found: " + treeUrl
+        );
+    }
+
+    const tree = JSON.parse(treeText);
+
+    log("Huffman tree loaded");
+
+    setProgress(65,"Decompressing Huffman data...");
+
+    await nextFrame();
+
+    const decompressed = decompressHuffman(
+        binary,
+        tree
+    );
+
+    setProgress(85,"Reconstructing HTML...");
+
+    return new TextDecoder(
+        "utf-8",
+        {fatal:true}
+    ).decode(decompressed);
+}
+
+// =============================================
+// QG GZIP DECOMPRESSION
+// =============================================
+
+async function unpackQG(data) {
+
+    if(!data.length) {
+        throw new Error("Empty QG payload");
+    }
+
+    // Mode 0: uncompressed binary
+
+    if(data[0] === 0) {
+
+        log("Compression mode: Raw");
+
+        return data.slice(1);
+    }
+
+    // Mode 1: GZIP
+
+    if(data[0] === 1) {
+
+        log("Compression mode: GZIP");
+
+        const stream = new Blob([data.slice(1)])
+            .stream()
+            .pipeThrough(
+                new DecompressionStream("gzip")
+            );
+
+        const reader = stream.getReader();
+
+        const chunks = [];
+
+        let length = 0;
+
+        while(true) {
+
+            const {done,value} = await reader.read();
+
+            if(done) break;
+
+            length += value.length;
+
+            if(length > MAX_DECOMPRESSED_SIZE) {
+
+                await reader.cancel();
+
+                throw new Error(
+                    "QG output too large"
+                );
+            }
+
+            chunks.push(value);
         }
 
-        const treeId = String(BigInt(match[1]));
-        const encoded = decodeURIComponent(match[2]).toUpperCase();
-        if (!/^[0-9A-Z*+\-]+$/.test(encoded)) {
-            throw new Error("Invalid Base-39 characters in URL payload");
+        const output = new Uint8Array(length);
+
+        let offset = 0;
+
+        for(const chunk of chunks) {
+
+            output.set(chunk,offset);
+
+            offset += chunk.length;
         }
-        const treeUrl = TREE_DIRECTORY + treeId + ".json";
-        log("Using Huffman tree " + treeId);
 
-        setProgress(10, "Game data detected");
-        log("Payload length: " + encoded.length + " characters");
+        return output;
+    }
 
-        await nextFrame();
+    throw new Error(
+        "Unknown QG compression mode"
+    );
+}
 
-        // Load shared Huffman tree.
-        setProgress(20, "Downloading Huffman tree...");
-        log("Fetching " + treeUrl);
+// =============================================
+// QG BIT READER
+// =============================================
 
-        const response = await fetch(treeUrl);
+class BitReader {
 
-        if (!response.ok) {
+    constructor(data) {
+
+        this.data = data;
+        this.position = 0;
+    }
+
+    get(count) {
+
+        if(
+            this.position + count >
+            this.data.length * 8
+        ) {
             throw new Error(
-                "Failed to fetch tree: HTTP " + response.status
+                "Unexpected end of QG binary"
             );
         }
 
-        const treeText = await response.text();
-        if (treeText.trimStart().startsWith("<")) {
-            throw new Error("Tree " + treeId + " not found: server returned HTML instead of JSON (" + treeUrl + ")");
-        }
-        let tree;
-        try {
-            tree = JSON.parse(treeText);
-        } catch (error) {
-            throw new Error("Invalid JSON for tree " + treeId + ": " + error.message);
+        let n = 0;
+
+        while(count--) {
+
+            n = n * 2 + (
+                (
+                    this.data[this.position >> 3] >>
+                    (7 - (this.position & 7))
+                ) & 1
+            );
+
+            this.position++;
         }
 
-        log("Huffman tree loaded");
+        return n;
+    }
 
-        setProgress(40, "Converting Base-39 to binary...");
+    uint() {
+
+        let n = 0;
+        let multiplier = 1;
+
+        for(let i=0;i<8;i++) {
+
+            const digit = this.get(8);
+
+            n += (digit & 127) * multiplier;
+
+            if(digit < 128) {
+
+                if(!Number.isSafeInteger(n)) {
+                    throw new Error(
+                        "Integer overflow"
+                    );
+                }
+
+                return n;
+            }
+
+            multiplier *= 128;
+        }
+
+        throw new Error("Integer overflow");
+    }
+
+    string() {
+
+        const length = this.uint();
+
+        if(length > 1000000) {
+            throw new Error("String too large");
+        }
+
+        const bytes = new Uint8Array(length);
+
+        for(let i=0;i<length;i++) {
+            bytes[i] = this.get(8);
+        }
+
+        return new TextDecoder(
+            "utf-8",
+            {fatal:true}
+        ).decode(bytes);
+    }
+
+    name() {
+        return "_v" + this.uint();
+    }
+}
+
+// =============================================
+// QG BINARY TO JAVASCRIPT
+// =============================================
+
+function decodeQG(data) {
+
+    const r = new BitReader(data);
+
+    const version = r.get(8);
+
+    if(version !== 1) {
+        throw new Error(
+            "Unsupported QG version: " + version
+        );
+    }
+
+    log("QG binary version " + version);
+
+    const tokens = [];
+
+    for(let count=0;count<1000000;count++) {
+
+        const opcode = r.get(5);
+
+        // Primary dictionary
+
+        if(opcode < 27) {
+
+            const token = QG_DICT[opcode];
+
+            tokens.push(
+                token === "fn"
+                    ? "function"
+                    : token
+            );
+        }
+
+        // Extended tokens
+
+        else if(opcode === 27) {
+
+            const mode = r.get(2);
+
+            // Extra dictionary
+
+            if(mode === 0) {
+
+                const token = QG_EXTRA[r.uint()];
+
+                if(token === undefined) {
+                    throw new Error(
+                        "Unknown extended QG token"
+                    );
+                }
+
+                tokens.push(token);
+            }
+
+            // Variable identifier
+
+            else if(mode === 1) {
+                tokens.push(r.name());
+            }
+
+            // End of program
+
+            else if(mode === 2) {
+
+                log(
+                    "Decoded " +
+                    tokens.length +
+                    " tokens"
+                );
+
+                return tokens.join(" ");
+            }
+
+            // Literal source text
+
+            else {
+                tokens.push(r.string());
+            }
+        }
+
+        // Integer
+
+        else if(opcode === 28) {
+            tokens.push(String(r.uint()));
+        }
+
+        // String literal
+
+        else if(opcode === 29) {
+            tokens.push(r.string());
+        }
+
+        // Sprite
+
+        else if(opcode === 30) {
+
+            const name = r.name();
+            const palette = r.name();
+
+            const w = r.uint();
+            const h = r.uint();
+
+            if(!w || !h || w*h > 1000000) {
+                throw new Error(
+                    "Invalid sprite dimensions"
+                );
+            }
+
+            const pixels = [];
+
+            for(let i=0;i<w*h;i++) {
+                pixels.push(r.get(3));
+            }
+
+            tokens.push(
+                `const ${name}={` +
+                `w:${w},h:${h},p:${palette},` +
+                `pixels:${JSON.stringify(pixels)}};`
+            );
+        }
+
+        // Palette
+
+        else if(opcode === 31) {
+
+            const name = r.name();
+
+            const colors = [null];
+
+            for(let i=0;i<7;i++) {
+
+                colors.push(
+                    "#" + r.get(24)
+                        .toString(16)
+                        .padStart(6,"0")
+                );
+            }
+
+            tokens.push(
+                `const ${name}=` +
+                JSON.stringify(colors) + ";"
+            );
+        }
+    }
+
+    throw new Error(
+        "QG program missing end marker"
+    );
+}
+
+// =============================================
+// QG RUNTIME
+// =============================================
+
+const QG_RUNTIME = `
+
+let canvasElement;
+let ctx;
+
+// ============================================
+// CANVAS
+// ============================================
+
+function canvas(w,h) {
+
+    canvasElement = document.createElement('canvas');
+
+    canvasElement.width = w;
+    canvasElement.height = h;
+
+    document.body.append(canvasElement);
+
+    ctx = canvasElement.getContext('2d');
+
+    ctx.imageSmoothingEnabled = false;
+
+    return canvasElement;
+}
+
+function clear(color='#fff') {
+
+    ctx.fillStyle = color;
+
+    ctx.fillRect(
+        0,0,
+        canvasElement.width,
+        canvasElement.height
+    );
+}
+
+function rect(x,y,w,h,color) {
+
+    ctx.fillStyle = color;
+
+    ctx.fillRect(x,y,w,h);
+}
+
+function text(s,x,y,color='#222',size=14) {
+
+    ctx.fillStyle = color;
+
+    ctx.font = size + 'px monospace';
+
+    ctx.fillText(s,x,y);
+}
+
+function frame(f) {
+
+    requestAnimationFrame(f);
+}
+
+// ============================================
+// POLYGONS
+// ============================================
+
+function poly(points,color) {
+
+    if(points.length < 3) return;
+
+    ctx.fillStyle = color;
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        points[0][0],
+        points[0][1]
+    );
+
+    for(let i=1;i<points.length;i++) {
+
+        ctx.lineTo(
+            points[i][0],
+            points[i][1]
+        );
+    }
+
+    ctx.closePath();
+    ctx.fill();
+}
+
+// ============================================
+// COLORS
+// ============================================
+
+function rgb(r,g,b) {
+
+    return 'rgb(' +
+        clamp(r,0,255) + ',' +
+        clamp(g,0,255) + ',' +
+        clamp(b,0,255) + ')';
+}
+
+function hsl(h,s,l) {
+
+    return 'hsl(' +
+        h + ',' +
+        clamp(s,0,100) + '%,' +
+        clamp(l,0,100) + '%)';
+}
+
+// ============================================
+// SPRITES
+// ============================================
+
+function packedSprite(w,h,bytes,p) {
+
+    if(p.length !== 8) {
+        throw Error('Invalid palette');
+    }
+
+    let pixels = [];
+
+    for(let i=0;i<w*h;i++) {
+
+        let b = i*3;
+        let v = 0;
+
+        for(let j=0;j<3;j++) {
+
+            v = v*2 + (
+                (
+                    bytes[(b+j)>>3] >>
+                    (7-((b+j)&7))
+                ) & 1
+            );
+        }
+
+        pixels.push(v);
+    }
+
+    return {w,h,p,pixels};
+}
+
+function blit(s,x,y,scale=1,flags=0) {
+
+    ctx.save();
+
+    ctx.translate(x,y);
+
+    let rotation = (flags>>2)&3;
+
+    ctx.translate(
+        s.w*scale/2,
+        s.h*scale/2
+    );
+
+    ctx.rotate(rotation*Math.PI/2);
+
+    ctx.scale(
+        flags&1 ? -1 : 1,
+        flags&2 ? -1 : 1
+    );
+
+    ctx.translate(
+        -s.w*scale/2,
+        -s.h*scale/2
+    );
+
+    for(let j=0;j<s.h;j++) {
+
+        for(let i=0;i<s.w;i++) {
+
+            let v = s.pixels[j*s.w+i];
+
+            if(v) {
+
+                ctx.fillStyle = s.p[v];
+
+                ctx.fillRect(
+                    i*scale,
+                    j*scale,
+                    scale,
+                    scale
+                );
+            }
+        }
+    }
+
+    ctx.restore();
+}
+
+function tile(s,x,y,n,m,scale=1,flags=0) {
+
+    for(let j=0;j<m;j++) {
+
+        for(let i=0;i<n;i++) {
+
+            blit(
+                s,
+                x+i*s.w*scale,
+                y+j*s.h*scale,
+                scale,
+                flags
+            );
+        }
+    }
+}
+
+// ============================================
+// INPUT
+// ============================================
+
+let pointerX = -Infinity;
+let pointerY = -Infinity;
+
+function touch(fn) {
+
+    canvasElement.style.touchAction = 'none';
+
+    canvasElement.addEventListener(
+        'pointerdown',
+        e => {
+
+            const r =
+                canvasElement.getBoundingClientRect();
+
+            pointerX =
+                (e.clientX-r.left) *
+                canvasElement.width/r.width;
+
+            pointerY =
+                (e.clientY-r.top) *
+                canvasElement.height/r.height;
+
+            fn(pointerX,pointerY);
+        }
+    );
+}
+
+function hit(x,y,w,h) {
+
+    return pointerX >= x &&
+           pointerX < x+w &&
+           pointerY >= y &&
+           pointerY < y+h;
+}
+
+function on(event,fn) {
+
+    window.addEventListener(event,fn);
+}
+
+// ============================================
+// SEEDED RANDOMNESS
+// ============================================
+
+let randomState = Date.now() >>> 0;
+
+function seed(n) {
+
+    randomState = n >>> 0;
+}
+
+function random() {
+
+    randomState = (
+        Math.imul(randomState,1664525)
+        + 1013904223
+    ) >>> 0;
+
+    return randomState / 4294967296;
+}
+
+function rand(min,max) {
+
+    return Math.floor(
+        random()*(max-min+1)
+    ) + min;
+}
+
+// ============================================
+// UTILITIES
+// ============================================
+
+function clamp(n,min,max) {
+
+    return Math.max(
+        min,
+        Math.min(max,n)
+    );
+}
+
+function len(a) {
+
+    return a.length;
+}
+
+function copy(a) {
+
+    return a.slice();
+}
+
+function remove(a,i) {
+
+    if(
+        !Number.isInteger(i) ||
+        i<0 ||
+        i>=a.length
+    ) {
+        return undefined;
+    }
+
+    return a.splice(i,1)[0];
+}
+
+function choose(a) {
+
+    if(!a.length) {
+        return undefined;
+    }
+
+    return a[rand(0,a.length-1)];
+}
+
+function shuffle(a) {
+
+    for(let i=a.length-1;i>0;i--) {
+
+        let j = rand(0,i);
+
+        [a[i],a[j]] = [a[j],a[i]];
+    }
+
+    return a;
+}
+
+// ============================================
+// SAVE AND LOAD
+// ============================================
+
+function save(data) {
+
+    if(!__qgStorageAvailable) {
+        return false;
+    }
+
+    try {
+
+        const encoded = JSON.stringify(data);
+
+        if(
+            encoded === undefined ||
+            encoded.length > 65536
+        ) {
+            return false;
+        }
+
+        window.parent.postMessage({
+            type:'QG_SAVE',
+            data:encoded
+        },__qgParentOrigin);
+
+        __qgSavedData = encoded;
+
+        return true;
+
+    } catch(e) {
+
+        return false;
+    }
+}
+
+function load() {
+
+    try {
+
+        return JSON.parse(__qgSavedData);
+
+    } catch(e) {
+
+        return null;
+    }
+}
+
+`;
+
+// =============================================
+// QG STORAGE BRIDGE
+// =============================================
+
+let activeStorageKey = null;
+
+// Generate an ID from the uncompressed program.
+// Raw and GZIP versions of the same binary share
+// the same save file.
+
+async function makeStorageKey(binary) {
+
+    const hash = await crypto.subtle.digest(
+        "SHA-256",
+        binary
+    );
+
+    const hex = Array.from(
+        new Uint8Array(hash),
+        x => x.toString(16).padStart(2,"0")
+    ).join("");
+
+    return "QG-SAVE-" + hex;
+}
+
+// Only accept save requests from the game iframe.
+// Games cannot specify their own storage keys.
+
+window.addEventListener("message",event => {
+
+    if(event.source !== gameFrame.contentWindow) {
+        return;
+    }
+
+    if(event.origin !== "null") {
+        return;
+    }
+
+    if(activeStorageKey === null) {
+        return;
+    }
+
+    const message = event.data;
+
+    if(!message || message.type !== "QG_SAVE") {
+        return;
+    }
+
+    if(typeof message.data !== "string") {
+        return;
+    }
+
+    if(message.data.length > MAX_SAVE_SIZE) {
+        return;
+    }
+
+    try {
+
+        JSON.parse(message.data);
+
+        localStorage.setItem(
+            activeStorageKey,
+            message.data
+        );
+
+    } catch(error) {
+
+        console.warn(
+            "Failed to save QG progress",
+            error
+        );
+    }
+});
+
+// =============================================
+// GENERATE QG HTML
+// =============================================
+
+function generateQGHTML(
+    code,
+    savedData,
+    storageAvailable
+) {
+
+    const setup =
+
+        "let __qgSavedData=" +
+        JSON.stringify(savedData) + ";\\n" +
+
+        "const __qgStorageAvailable=" +
+        JSON.stringify(storageAvailable) + ";\\n" +
+
+        "const __qgParentOrigin=" +
+        JSON.stringify(location.origin) + ";\\n";
+
+    const script = (
+        setup +
+        QG_RUNTIME +
+        "\n" +
+        code
+    )
+        .replace(/<\/script/gi,"<\\/script")
+        .replace(/<!--/g,"<\\!--");
+
+    return `
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width,initial-scale=1">
+
+<style>
+
+    * {
+        box-sizing:border-box;
+    }
+
+    html,body {
+        margin:0;
+        width:100%;
+        height:100%;
+        overflow:hidden;
+        background:#182334;
+    }
+
+    body {
+        display:flex;
+        align-items:center;
+        justify-content:center;
+    }
+
+    canvas {
+        display:block;
+        max-width:100vw;
+        max-height:100vh;
+        object-fit:contain;
+        image-rendering:pixelated;
+        touch-action:none;
+    }
+
+</style>
+
+</head>
+
+<body>
+
+<scr${"ipt"}>
+${script}
+</scr${"ipt"}>
+
+</body>
+
+</html>
+`;
+}
+
+// =============================================
+// QG GAME LOADER
+// =============================================
+
+async function decodeQGGame(binary) {
+
+    setProgress(40,"Unpacking QG binary...");
+
+    await nextFrame();
+
+    const raw = await unpackQG(binary);
+
+    log("Program size: " + raw.length + " bytes");
+
+    setProgress(65,"Decoding QG instructions...");
+
+    await nextFrame();
+
+    const code = decodeQG(raw);
+
+    // Read this game's save data before launching.
+
+    let savedData = null;
+    let storageAvailable = false;
+
+    try {
+
+        activeStorageKey = await makeStorageKey(raw);
+
+        savedData = localStorage.getItem(
+            activeStorageKey
+        );
+
+        // Check whether localStorage accepts writes.
+
+        localStorage.setItem(
+            activeStorageKey,
+            savedData === null ? "null" : savedData
+        );
+
+        if(savedData === null) {
+
+            localStorage.removeItem(
+                activeStorageKey
+            );
+        }
+
+        storageAvailable = true;
+
+        if(savedData) {
+            log("Saved progress found");
+        }
+
+    } catch(error) {
+
+        activeStorageKey = null;
+
+        log("Local storage unavailable");
+    }
+
+    setProgress(85,"Generating game HTML...");
+
+    await nextFrame();
+
+    return generateQGHTML(
+        code,
+        savedData,
+        storageAvailable
+    );
+}
+
+// =============================================
+// LAUNCH GAME
+// =============================================
+
+async function launchGame(html) {
+
+    setProgress(95,"Launching game...");
+
+    await nextFrame();
+
+    gameFrame.addEventListener("load",() => {
+
+        setProgress(100,"Game ready!");
+
+        $("loading").style.opacity = "0";
+
+        setTimeout(() => {
+
+            $("loading").style.display = "none";
+
+            gameFrame.focus();
+
+        },400);
+
+    },{once:true});
+
+    // Preserve isolation for untrusted QR games.
+
+    gameFrame.setAttribute(
+        "sandbox",
+        "allow-scripts allow-pointer-lock"
+    );
+
+    gameFrame.srcdoc = html;
+
+    gameFrame.style.display = "block";
+}
+
+// =============================================
+// MAIN LOADER
+// =============================================
+
+async function loadGame() {
+
+    try {
+
+        const path = window.location.pathname;
+
+        // Supported formats:
+        //
+        // /0/PAYLOAD
+        // /1/PAYLOAD
+        // /QG/PAYLOAD
+        // /QL/PAYLOAD
+
+        const match = path.match(
+            /^\/(\d+|QG|QL)\/([^/]+)\/?$/i
+        );
+
+        if(!match) {
+
+            setProgress(
+                0,
+                "Waiting for a valid encoded URL"
+            );
+
+            $("home").style.display = "block";
+
+            log("Expected /TREE_ID/PAYLOAD");
+            log("Or /QG/PAYLOAD");
+
+            return;
+        }
+
+        const format = match[1].toUpperCase();
+
+        const encoded = decodeURIComponent(
+            match[2]
+        ).toUpperCase();
+
+        if(!/^[0-9A-Z*+\-]+$/.test(encoded)) {
+            throw new Error(
+                "Invalid Base39 payload"
+            );
+        }
+
+        if(encoded.length > 100000) {
+            throw new Error(
+                "Encoded payload too large"
+            );
+        }
+
+        const isQG =
+            format === "QG" ||
+            format === "QL";
+
+        setProgress(10,"Game data detected");
+
+        log(
+            "Format: " +
+            (isQG ? "QG Binary" : "HTML Huffman")
+        );
+
+        log(
+            "Payload: " +
+            encoded.length +
+            " characters"
+        );
+
         await nextFrame();
 
-        // Decode Base-39.
+        setProgress(20,"Decoding Base39...");
+
         const binary = decodeBase39(encoded);
 
-        setProgress(65, "Decompressing Huffman data...");
         await nextFrame();
 
-        // Decompress Huffman data.
-        const decompressed = decompressHuffman(
-            binary,
-            tree
-        );
+        let html;
 
-        setProgress(85, "Reconstructing HTML...");
-        await nextFrame();
+        if(isQG) {
 
-        // Convert bytes into HTML.
-        const html = new TextDecoder(
-            "utf-8",
-            { fatal: true }
-        ).decode(decompressed);
+            // New QG language
+
+            html = await decodeQGGame(binary);
+
+        } else {
+
+            // Original HTML compression system
+
+            activeStorageKey = null;
+
+            const treeId = String(BigInt(format));
+
+            html = await decodeHTMLGame(
+                binary,
+                treeId
+            );
+        }
 
         log("HTML reconstructed");
-        log("Preparing game...");
 
-        setProgress(95, "Launching game...");
-        await nextFrame();
+        await launchGame(html);
 
-        // Load HTML into isolated iframe.
-        const gameFrame = document.getElementById("game");
+    } catch(error) {
 
-        gameFrame.addEventListener("load", () => {
-            setProgress(100, "Game ready!");
-
-            document.getElementById("loading").style.opacity = "0";
-
-            setTimeout(() => {
-                document.getElementById("loading").style.display =
-                    "none";
-                gameFrame.focus();
-            }, 400);
-        }, { once: true });
-
-        // Restrict iframe access to the parent page.
-        // Scripts are allowed so HTML games can run.
-        gameFrame.setAttribute(
-            "sandbox",
-            "allow-scripts allow-pointer-lock"
-        );
-
-        gameFrame.style.display = "block";
-        gameFrame.srcdoc = html;
-
-    } catch (error) {
         console.error(error);
 
-        setProgress(0, "Decoding failed");
+        setProgress(0,"Decoding failed");
 
-        document.getElementById("error").textContent =
-            error.message;
+        $("error").textContent = error.message;
 
         log("ERROR: " + error.message);
     }
 }
 
 loadGame();
+
 </script>
 
 </body>

@@ -1289,13 +1289,13 @@ function generateQGHTML(
     const setup =
 
         "let __qgSavedData=" +
-        JSON.stringify(savedData) + ";\\n" +
+        JSON.stringify(savedData) + ";\n" +
 
         "const __qgStorageAvailable=" +
-        JSON.stringify(storageAvailable) + ";\\n" +
+        JSON.stringify(storageAvailable) + ";\n" +
 
         "const __qgParentOrigin=" +
-        JSON.stringify(location.origin) + ";\\n";
+        JSON.stringify(location.origin) + ";\n";
 
     const script = (
         setup +

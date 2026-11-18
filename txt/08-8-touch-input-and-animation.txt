@@ -1,0 +1,28 @@
+8. Touch input and animation
+
+touch registers a callback for pointer presses.
+      Its X and Y arguments use logical canvas coordinates.
+      frame registers a callback executed every animation
+      frame. Its dt argument represents elapsed seconds.
+
+CODE EXAMPLE:
+let x=100;
+let dirty=1;
+
+touch(fn(tx,ty){
+  x=tx;
+  dirty=1;
+});
+
+frame(fn(dt){
+  if(dirty){
+    rect(0,0,400,400,"#25221f");
+    rect(x,100,30,30,"#b69a58");
+    dirty=0;
+  }
+});
+
+Turn-based games should generally redraw only when
+      something changes. A dirty flag avoids unnecessary
+      drawing and can reduce flickering. Expensive AI searches
+      should not run continuously inside frame callbacks.

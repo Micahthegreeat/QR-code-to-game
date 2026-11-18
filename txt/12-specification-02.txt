@@ -1,0 +1,3 @@
+2. Symbol IDs and scope
+
+Each reference stores a 3-bit category plus 6-bit ID : global variable, function-local variable, user function, built-in function, palette, or sprite. The 6-bit IDs permit 64 symbols per category or local frame. Identifiers are discarded; they are not stored as strings. Function arguments and local declarations use 6-bit local slots. Built-ins use fixed IDs. Nested function closures capturing non-global local variables are not supported in v2.

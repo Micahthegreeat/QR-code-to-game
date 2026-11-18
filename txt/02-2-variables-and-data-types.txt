@@ -1,0 +1,21 @@
+2. Variables and data types
+
+Declare mutable variables using let. QG supports numbers,
+      strings, booleans, null, arrays, and function values.
+      Arrays use zero-based indexing and can be modified.
+
+CODE EXAMPLE:
+let score=0;
+let player=[100,200,5];
+let alive=true;
+
+score=score+10;
+player[0]=player[0]+5;
+player.push(20);
+let last=player.pop();
+
+Variable names are replaced with compact numeric IDs
+      during compilation. Function-local variables and parameters
+      use six-bit identifiers, allowing up to 64 local slots
+      per function. Original variable names are not preserved
+      when decoding.

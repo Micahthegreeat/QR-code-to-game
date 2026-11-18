@@ -1,0 +1,661 @@
+canvas(400,440);
+
+palette whitePieces=[null,"#ead4b6","#55483e"];
+palette blackPieces=[null,"#343039","#c2a88d"];
+
+sprite pawnSprite(whitePieces){
+000000000000
+000000000000
+000002220000
+000021112000
+000211111200
+000021112000
+000002220000
+000021112000
+000211111200
+002111111120
+001111111110
+002222222220
+}
+
+sprite knightSprite(whitePieces){
+000002200000
+000022120000
+000211120000
+002211112000
+022121112000
+021111112000
+221111120000
+022111120000
+002111112000
+002111111200
+001111111100
+002222222200
+}
+
+sprite bishopSprite(whitePieces){
+000000200000
+000002120000
+000021112000
+000211211200
+000211121200
+000021112000
+000002220000
+000021112000
+000211111200
+002111111120
+001111111110
+002222222220
+}
+
+sprite rookSprite(whitePieces){
+000000000000
+002200220022
+002120220122
+002111111122
+000211111200
+000211111200
+000211111200
+000211111200
+000211111200
+002111111120
+001111111110
+002222222220
+}
+
+sprite queenSprite(whitePieces){
+020002000020
+021002100120
+021202120120
+002122221200
+000211112000
+000211112000
+000211112000
+000211112000
+000211112000
+002111111120
+001111111110
+002222222220
+}
+
+sprite kingSprite(whitePieces){
+000002200000
+000002200000
+000222222000
+000002200000
+000021120000
+000211112000
+002111111200
+000211112000
+000211112000
+002111111200
+001111111100
+002222222200
+}
+
+let board=[
+14,12,13,15,16,13,12,14,
+11,11,11,11,11,11,11,11,
+0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,
+1,1,1,1,1,1,1,1,
+4,2,3,5,6,3,2,4
+];
+
+let pieceValues=[0,100,320,330,500,900,20000];
+
+let currentTurn=0;
+let selectedSquare=-1;
+let gameResult=0;
+let needsRedraw=1;
+let moveCount=0;
+
+fn pieceSide(piece){
+    if(piece==0){
+        return -1;
+    }
+
+    if(piece>10){
+        return 1;
+    }
+
+    return 0;
+}
+
+fn pieceType(piece){
+    if(piece>10){
+        return piece-10;
+    }
+
+    return piece;
+}
+
+fn attacksSquare(fromSquare,toSquare){
+    let piece=board[fromSquare];
+
+    if(piece==0||fromSquare==toSquare){
+        return 0;
+    }
+
+    let fromX=fromSquare%8;
+    let fromY=floor(fromSquare/8);
+    let toX=toSquare%8;
+    let toY=floor(toSquare/8);
+
+    let deltaX=toX-fromX;
+    let deltaY=toY-fromY;
+
+    let distanceX=abs(deltaX);
+    let distanceY=abs(deltaY);
+
+    let type=pieceType(piece);
+
+    if(type==1){
+        let direction=-1;
+
+        if(pieceSide(piece)==1){
+            direction=1;
+        }
+
+        if(distanceX==1&&deltaY==direction){
+            return 1;
+        }
+
+        return 0;
+    }
+
+    if(type==2){
+        if(distanceX==1&&distanceY==2){
+            return 1;
+        }
+
+        if(distanceX==2&&distanceY==1){
+            return 1;
+        }
+
+        return 0;
+    }
+
+    if(type==6){
+        if(distanceX<=1&&distanceY<=1){
+            return 1;
+        }
+
+        return 0;
+    }
+
+    if(type==3&&distanceX!=distanceY){
+        return 0;
+    }
+
+    if(type==4&&deltaX!=0&&deltaY!=0){
+        return 0;
+    }
+
+    if(type==5){
+        if(distanceX!=distanceY&&deltaX!=0&&deltaY!=0){
+            return 0;
+        }
+    }
+
+    let stepX=0;
+    let stepY=0;
+
+    if(deltaX>0){
+        stepX=1;
+    }
+
+    if(deltaX<0){
+        stepX=-1;
+    }
+
+    if(deltaY>0){
+        stepY=1;
+    }
+
+    if(deltaY<0){
+        stepY=-1;
+    }
+
+    let checkX=fromX+stepX;
+    let checkY=fromY+stepY;
+
+    while(checkX!=toX||checkY!=toY){
+        if(board[checkY*8+checkX]!=0){
+            return 0;
+        }
+
+        checkX=checkX+stepX;
+        checkY=checkY+stepY;
+    }
+
+    return 1;
+}
+
+fn squareIsAttacked(square,side){
+    for(let index=0;index<64;index=index+1){
+        if(pieceSide(board[index])==side){
+            if(attacksSquare(index,square)){
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+fn kingIsInCheck(side){
+    let king=6;
+
+    if(side==1){
+        king=16;
+    }
+
+    for(let index=0;index<64;index=index+1){
+        if(board[index]==king){
+            return squareIsAttacked(index,1-side);
+        }
+    }
+
+    return 1;
+}
+
+fn isPseudoLegal(fromSquare,toSquare){
+    if(fromSquare<0||toSquare<0){
+        return 0;
+    }
+
+    if(fromSquare>=64||toSquare>=64){
+        return 0;
+    }
+
+    if(fromSquare==toSquare){
+        return 0;
+    }
+
+    let piece=board[fromSquare];
+    let target=board[toSquare];
+
+    if(piece==0){
+        return 0;
+    }
+
+    if(pieceSide(piece)==pieceSide(target)){
+        return 0;
+    }
+
+    if(pieceType(target)==6){
+        return 0;
+    }
+
+    let fromX=fromSquare%8;
+    let fromY=floor(fromSquare/8);
+    let toX=toSquare%8;
+    let toY=floor(toSquare/8);
+
+    let deltaX=toX-fromX;
+    let deltaY=toY-fromY;
+
+    if(pieceType(piece)==1){
+        let direction=-1;
+        let startingRank=6;
+
+        if(pieceSide(piece)==1){
+            direction=1;
+            startingRank=1;
+        }
+
+        if(deltaX==0&&target==0){
+            if(deltaY==direction){
+                return 1;
+            }
+
+            if(deltaY==2*direction&&fromY==startingRank){
+                if(board[fromSquare+8*direction]==0){
+                    return 1;
+                }
+            }
+        }
+
+        if(abs(deltaX)==1&&deltaY==direction&&target!=0){
+            return 1;
+        }
+
+        return 0;
+    }
+
+    return attacksSquare(fromSquare,toSquare);
+}
+
+fn isLegalMove(fromSquare,toSquare){
+    if(isPseudoLegal(fromSquare,toSquare)==0){
+        return 0;
+    }
+
+    let piece=board[fromSquare];
+    let target=board[toSquare];
+    let side=pieceSide(piece);
+
+    board[toSquare]=piece;
+    board[fromSquare]=0;
+
+    let inCheck=kingIsInCheck(side);
+
+    board[fromSquare]=piece;
+    board[toSquare]=target;
+
+    if(inCheck){
+        return 0;
+    }
+
+    return 1;
+}
+
+fn hasLegalMoves(side){
+    for(let fromSquare=0;fromSquare<64;fromSquare=fromSquare+1){
+        if(pieceSide(board[fromSquare])==side){
+            for(let toSquare=0;toSquare<64;toSquare=toSquare+1){
+                if(isLegalMove(fromSquare,toSquare)){
+                    return 1;
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+fn updateGameResult(){
+    if(hasLegalMoves(currentTurn)){
+        return;
+    }
+
+    if(kingIsInCheck(currentTurn)){
+        if(currentTurn==0){
+            gameResult=2;
+        }else{
+            gameResult=1;
+        }
+    }else{
+        gameResult=3;
+    }
+}
+
+fn makeMove(fromSquare,toSquare){
+    let piece=board[fromSquare];
+
+    board[toSquare]=piece;
+    board[fromSquare]=0;
+
+    let destinationRank=floor(toSquare/8);
+
+    if(pieceType(piece)==1){
+        if(destinationRank==0){
+            board[toSquare]=5;
+        }
+
+        if(destinationRank==7){
+            board[toSquare]=15;
+        }
+    }
+
+    selectedSquare=-1;
+    currentTurn=1-currentTurn;
+    moveCount=moveCount+1;
+
+    updateGameResult();
+
+    needsRedraw=1;
+}
+
+fn evaluateMove(fromSquare,toSquare){
+    let movingPiece=board[fromSquare];
+    let capturedPiece=board[toSquare];
+
+    let score=0;
+
+    if(capturedPiece!=0){
+        score=pieceValues[pieceType(capturedPiece)]*10;
+        score=score-pieceValues[pieceType(movingPiece)];
+    }
+
+    let targetX=toSquare%8;
+    let targetY=floor(toSquare/8);
+
+    let centerDistance=abs(targetX-3.5)+abs(targetY-3.5);
+
+    score=score+floor(20-centerDistance*3);
+
+    if(pieceType(movingPiece)==1){
+        score=score+targetY*3;
+
+        if(targetY==7){
+            score=score+800;
+        }
+    }
+
+    if(pieceType(movingPiece)==6){
+        score=score-10;
+    }
+
+    let originalTarget=board[toSquare];
+
+    board[toSquare]=movingPiece;
+    board[fromSquare]=0;
+
+    if(kingIsInCheck(0)){
+        score=score+35;
+    }
+
+    if(squareIsAttacked(toSquare,0)){
+        score=score-pieceValues[pieceType(movingPiece)];
+    }
+
+    board[fromSquare]=movingPiece;
+    board[toSquare]=originalTarget;
+
+    return score;
+}
+
+fn computerMove(){
+    if(currentTurn!=1||gameResult!=0){
+        return;
+    }
+
+    let bestFrom=-1;
+    let bestTo=-1;
+    let bestScore=-999999;
+
+    for(let fromSquare=0;fromSquare<64;fromSquare=fromSquare+1){
+        if(pieceSide(board[fromSquare])==1){
+            for(let toSquare=0;toSquare<64;toSquare=toSquare+1){
+                if(isLegalMove(fromSquare,toSquare)){
+                    let score=evaluateMove(fromSquare,toSquare);
+                    score=score+rand(12);
+
+                    if(score>bestScore){
+                        bestScore=score;
+                        bestFrom=fromSquare;
+                        bestTo=toSquare;
+                    }
+                }
+            }
+        }
+    }
+
+    if(bestFrom>=0){
+        makeMove(bestFrom,bestTo);
+    }else{
+        updateGameResult();
+    }
+}
+
+fn drawPiece(piece,x,y){
+    let type=pieceType(piece);
+    let paletteToUse=whitePieces;
+
+    if(pieceSide(piece)==1){
+        paletteToUse=blackPieces;
+    }
+
+    if(type==1){
+        blit(pawnSprite,x,y,3,paletteToUse);
+    }
+
+    if(type==2){
+        blit(knightSprite,x,y,3,paletteToUse);
+    }
+
+    if(type==3){
+        blit(bishopSprite,x,y,3,paletteToUse);
+    }
+
+    if(type==4){
+        blit(rookSprite,x,y,3,paletteToUse);
+    }
+
+    if(type==5){
+        blit(queenSprite,x,y,3,paletteToUse);
+    }
+
+    if(type==6){
+        blit(kingSprite,x,y,3,paletteToUse);
+    }
+}
+
+fn drawBoard(){
+    clear();
+
+    rect(0,0,400,440,"#20252d");
+
+    for(let square=0;square<64;square=square+1){
+        let x=square%8;
+        let y=floor(square/8);
+
+        let color="#e6d6b5";
+
+        if((x+y)%2==1){
+            color="#76906c";
+        }
+
+        rect(x*50,y*50,50,50,color);
+
+        if(square==selectedSquare){
+            rect(x*50,y*50,50,50,"#c7ad49");
+        }
+
+        let piece=board[square];
+
+        if(piece!=0){
+            drawPiece(piece,x*50+7,y*50+7);
+        }
+    }
+
+    rect(0,400,400,40,"#20252d");
+
+    if(gameResult==1){
+        text("White wins by checkmate",8,425,"#ffffff");
+    }
+
+    if(gameResult==2){
+        text("Black wins by checkmate",8,425,"#ffffff");
+    }
+
+    if(gameResult==3){
+        text("Stalemate",8,425,"#ffffff");
+    }
+
+    if(gameResult==0){
+        if(currentTurn==0){
+            text("White to move",8,425,"#ffffff");
+        }else{
+            text("Computer thinking",8,425,"#ffffff");
+        }
+
+        if(kingIsInCheck(currentTurn)){
+            text("CHECK",205,425,"#ff7777");
+        }
+    }
+
+    rect(310,405,82,29,"#485569");
+    text("Restart",320,424,"#ffffff");
+
+    needsRedraw=0;
+}
+
+fn resetGame(){
+    board=[
+        14,12,13,15,16,13,12,14,
+        11,11,11,11,11,11,11,11,
+        0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,
+        1,1,1,1,1,1,1,1,
+        4,2,3,5,6,3,2,4
+    ];
+
+    currentTurn=0;
+    selectedSquare=-1;
+    gameResult=0;
+    moveCount=0;
+    needsRedraw=1;
+}
+
+touch(fn(x,y){
+    if(y>=400){
+        if(x>=300){
+            resetGame();
+        }
+
+        return;
+    }
+
+    if(currentTurn!=0||gameResult!=0){
+        return;
+    }
+
+    let squareX=floor(x/50);
+    let squareY=floor(y/50);
+    let square=squareY*8+squareX;
+
+    if(square<0||square>=64){
+        return;
+    }
+
+    if(selectedSquare<0){
+        if(pieceSide(board[square])==0){
+            selectedSquare=square;
+            needsRedraw=1;
+        }
+
+        return;
+    }
+
+    if(isLegalMove(selectedSquare,square)){
+        makeMove(selectedSquare,square);
+        return;
+    }
+
+    if(pieceSide(board[square])==0){
+        selectedSquare=square;
+    }else{
+        selectedSquare=-1;
+    }
+
+    needsRedraw=1;
+});
+
+frame(fn(dt){
+    if(currentTurn==1&&gameResult==0){
+        computerMove();
+    }
+
+    if(needsRedraw){
+        drawBoard();
+    }
+});
+
+drawBoard();

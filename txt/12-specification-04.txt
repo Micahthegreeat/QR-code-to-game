@@ -1,0 +1,3 @@
+4. Numbers, strings, arrays, and properties
+
+Numbers 0–4 use a 1-bit type flag plus 3 value bits. Signed integers -16 to 15 use 2 type bits plus 5 value bits. Other safe integers use zigzag varints, while nonintegers use IEEE-754 float64. String literals use UTF-8 bytes with varint length; actual text content cannot be eliminated. Arrays store a varint element count followed by encoded expressions. Common properties push , pop , and length use short IDs; uncommon property names remain UTF-8 strings.

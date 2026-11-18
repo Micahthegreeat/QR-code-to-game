@@ -1,0 +1,39 @@
+6. Palette swapping and sprite reuse
+
+A sprite can be drawn using a different palette without
+      storing its pixel pattern again. This is useful for
+      different teams, character colors, chess pieces,
+      enemy variations, and animations.
+
+CODE EXAMPLE:
+palette ivory=[
+  null,
+  "#ead4b6",
+  "#55483e"
+];
+
+palette charcoal=[
+  null,
+  "#343039",
+  "#c2a88d"
+];
+
+sprite pawn(ivory){
+00011000
+00111100
+00111100
+00011000
+00111100
+01111110
+01111110
+12222221
+}
+
+blit(pawn,20,20,5);
+blit(pawn,80,20,5,charcoal);
+
+The optional fifth argument to blit overrides the
+      sprite's original palette. Both calls use the same
+      stored pixel data. Palette colors are compressed
+      into RGB555 values, using five bits for each
+      red, green and blue channel.

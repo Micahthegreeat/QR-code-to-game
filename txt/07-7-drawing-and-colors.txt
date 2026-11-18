@@ -1,0 +1,18 @@
+7. Drawing and colors
+
+Use rect to draw filled rectangles, text to display
+      labels, clear to clear the canvas, and blit for sprites.
+      Rectangles and text can use hexadecimal color strings
+      or built-in numeric color IDs.
+
+CODE EXAMPLE:
+rect(0,0,400,400,"#25221f");
+rect(10,10,50,50,"#665448");
+text("Score: "+score,10,420,"#ead4b6");
+
+Hexadecimal colors provide precise control.
+      Numeric drawing colors use the runtime's fixed palette;
+      sprite palette declarations do not automatically
+      change those numeric drawing colors.
+      Clearing the canvas makes it transparent, so draw
+      a background afterward when necessary.

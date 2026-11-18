@@ -1,0 +1,7 @@
+QG source editor
+Compile and preview
+Download decoded HTML
+Copy Base39
+Copy game link
+Game URL:
+Compile to generate a link

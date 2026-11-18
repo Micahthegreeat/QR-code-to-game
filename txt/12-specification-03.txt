@@ -1,0 +1,7 @@
+3. Instruction opcodes
+
+AST instructions use fixed, prefix-free variable-length opcodes instead of 5-bit tags. The most common instructions get 3–4 bits. All operands follow their opcode, and counted lists use unsigned varints.
+
+
+
+Binary operators are currently stored as 4-bit IDs; a future version can use frequency-derived prefix codes for those too.

@@ -1,0 +1,19 @@
+3. Math and operators
+
+QG supports arithmetic, comparisons, and logical operations.
+      Expressions are encoded as compact binary instructions
+      rather than storing their original JavaScript-like text.
+
+CODE EXAMPLE:
+let x=10+5*2;
+let y=floor(x/3);
+let distance=abs(x-y);
+
+if(x>10&&y<20){
+  x=x+1;
+}
+
+Arithmetic: +, -, *, /, %.
+      Comparisons: ==, !=, <, >, <=, >=.
+      Logic: &&, ||, !.
+      Frequently used small integers have shorter encodings.

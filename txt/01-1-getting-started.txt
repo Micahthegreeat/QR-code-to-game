@@ -1,0 +1,16 @@
+1. Getting started
+
+Every game begins by declaring its canvas.
+      Coordinates start at the upper-left corner.
+      X increases rightward and Y increases downward.
+      The generated webpage scales the canvas to fit
+      the available screen while preserving its proportions.
+
+CODE EXAMPLE:
+canvas(400,440);
+rect(0,0,400,440,"#25221f");
+text("Hello QG",20,30,"#ead4b6");
+
+The first two canvas arguments are the logical width and height.
+      Drawing uses these coordinates regardless of the phone's
+      physical screen resolution.

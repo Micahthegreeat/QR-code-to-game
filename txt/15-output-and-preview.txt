@@ -1,0 +1,10 @@
+Compiled size
+Source characters
+—
+Binary bits
+—
+Base39 digits
+—
+QR 4296-char usage
+—
+The Base39 digit count is exact for optimized QG v2. The game URL also contains a domain and version prefix. Binary encoding uses a 1-bit sentinel for exact leading-zero recovery; the bit count excludes that sentinel.

@@ -1,0 +1,17 @@
+9. Built-in functions
+
+Graphics: canvas, clear, rect, text, blit.
+      Events: touch, frame.
+      Math: floor, abs, min, max, sin, cos, sqrt, rand.
+      Arrays: len, push, pop, .length, .push(), .pop().
+
+CODE EXAMPLE:
+let x=floor(rand()*100);
+let y=max(0,min(x,50));
+let a=[1,2,3];
+a.push(y);
+let count=len(a);
+
+QG is not full JavaScript. DOM access, imports,
+      arbitrary browser APIs, and unsupported JavaScript
+      syntax cannot be used directly in QG programs.

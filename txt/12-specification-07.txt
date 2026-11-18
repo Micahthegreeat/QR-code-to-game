@@ -1,0 +1,3 @@
+7. Compatibility, constraints, and remaining optimization
+
+The first 4 bits are the binary format version (2), followed by 4 reserved zero flag bits. The codec is fixed once published. No full identifier strings are stored. This format is more compact structurally than the AST prototype, but it is not proven smaller than the existing Huffman QG pipeline without a corpus benchmark. Operator IDs, function-call argument counts, and node-count varints remain optimization opportunities. QG v2 is a new format, not a decoder for existing /0/ games.

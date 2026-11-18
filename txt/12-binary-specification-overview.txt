@@ -1,0 +1,3 @@
+QG v2 — Binary specification
+
+This is the actual encoder used by this page , not a proposed future format. The codec is versioned: /0/ is the optimized binary format, /1/ is the earlier AST prototype, and /0/ is reserved for your original Huffman format.

@@ -1,0 +1,27 @@
+4. Functions, loops and recursion
+
+Functions are declared with fn and can return values.
+      Use if/else for conditions, for for counted loops,
+      and while for condition-based loops.
+      Recursive functions are supported, making QG suitable
+      for search algorithms and game AI.
+
+CODE EXAMPLE:
+fn factorial(n){
+  if(n<=1){return 1;}
+  return n*factorial(n-1);
+}
+
+let result=factorial(5);
+
+for(let i=0;i<8;i=i+1){
+  result=result+i;
+}
+
+while(result>100){
+  result=result-10;
+}
+
+Nested functions that capture local variables from
+      surrounding functions are not supported by the current codec.
+      Use explicit function parameters or global state instead.

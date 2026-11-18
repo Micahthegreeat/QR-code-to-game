@@ -1,0 +1,3 @@
+6. Base39 and URL versions
+
+Alphabet: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ*+- . A leading sentinel bit 1 is prepended to the packed binary before conversion to a Base39 integer, preserving all leading zero bits. The URL form is /0/BASE39 . /1/ keeps the earlier AST decoder. /0/ is reserved for the original tree/Huffman decoder and must be integrated separately to play old links.

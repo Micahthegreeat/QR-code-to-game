@@ -1,0 +1,17 @@
+11. Compiling and testing games
+
+Paste QG source into the editor and select
+      Compile and preview. The website displays
+      the compiled bit count, Base39 payload length,
+      decoded QG source and executable game preview.
+
+To test locally, open a terminal in the project folder:
+
+CODE EXAMPLE:
+cd C:\Projects\QR-code-to-game
+npx wrangler pages dev .
+
+Open http://localhost:8788 in your browser.
+      Generated games use /0/ followed by their Base39 payload.
+      Keep the _redirects file in the site root so direct
+      links can load the decoder.

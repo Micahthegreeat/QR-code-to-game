@@ -1,0 +1,3 @@
+5. RGB555 palettes and sprite compression
+
+Palette entries use a 1-bit presence flag; opaque colors use exactly 15 additional bits (RGB555) . Transparency is explicit. RGB555 rounds 8-bit color channels to 5 bits, so decompiled hex colors can differ slightly. Sprite dimensions use varints, and pixels are stored as either base-5 packed digits or run-length encoding , whichever is smaller for that sprite. Each pixel is a palette index 0–4, where 0 is transparent.

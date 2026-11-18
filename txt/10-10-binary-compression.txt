@@ -1,0 +1,17 @@
+10. Binary compression
+
+QG compiles source code into an abstract syntax tree,
+      assigns numeric IDs to symbols, encodes operations
+      using prefix-free variable-length instructions,
+      and packs the resulting bits into Base39.
+
+Common small numbers use short encodings.
+      Other integers use variable-length representations.
+      Colors use RGB555. Sprite pixels use base-5 packing
+      or run-length encoding. Arrays and expressions
+      are encoded structurally.
+
+Compression is not guaranteed to make every game fit
+      inside one QR code. Large sprites, long strings,
+      complex AI and repeated logic still consume space.
+      Always inspect the actual compiled Base39 length.

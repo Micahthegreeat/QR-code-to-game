@@ -1,0 +1,642 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QG Language Compiler</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#10151f;color:#e5eaf4;font:14px system-ui}
+header{padding:18px;background:#1b2535;border-bottom:1px solid #35445a}
+h1{margin:0;font-size:23px}
+h2{font-size:17px;margin:0 0 12px}
+p{line-height:1.5;color:#b9c7da}
+main{max-width:1250px;margin:auto;padding:16px}
+section{background:#1b2535;border:1px solid #35445a;
+border-radius:10px;padding:16px;margin-bottom:16px}
+textarea,pre{width:100%;background:#0d121b;color:#dce9ff;
+border:1px solid #35445a;border-radius:7px;padding:12px;
+font:13px/1.5 Consolas,monospace;tab-size:2}
+textarea{resize:vertical;min-height:250px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:350px;overflow:auto}
+button{background:#3778d8;color:white;border:0;border-radius:6px;
+padding:10px 16px;cursor:pointer;font-weight:bold}
+button:hover{background:#5594f2}
+button:disabled{opacity:.5}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:750px){.grid{grid-template-columns:1fr}}
+.stat{background:#10151f;padding:12px;border-radius:7px;flex:1;min-width:130px}
+.stat strong{display:block;font-size:22px;margin-top:5px}
+small{color:#9aacc4}
+code{color:#a9d1ff}
+details{margin-top:10px}
+summary{cursor:pointer;color:#a9d1ff}
+iframe{width:100%;height:380px;border:1px solid #35445a;
+border-radius:7px;background:white}
+.error{color:#ff8c8c;white-space:pre-wrap}
+.ok{color:#83dca3}
+</style>
+</head>
+<body>
+<header>
+<h1>QG Compiler Playground</h1>
+<p>Write QG, compile to packed binary, encode as Base39,
+and generate a playable HTML file.</p>
+</header>
+<main>
+
+<section>
+<h2>1. Language guide</h2>
+<p>QG is a compact game language. The compiler converts
+its instructions into binary opcodes and reconstructs
+JavaScript using a shared browser runtime.</p>
+
+<details open>
+<summary>Variables and arithmetic</summary>
+<pre>let x = 10;
+let y = 20;
+x = x + 1;
+y = x * 2;</pre>
+<p>Supported operators:
+<code>+ - * / % &lt; &gt; == != &lt;= &gt;=</code>.
+Variables are stored using 6-bit IDs.</p>
+</details>
+
+<details>
+<summary>Drawing</summary>
+<pre>canvas(240,320);
+clear();
+rect(10,20,40,30,1);</pre>
+<p><code>canvas(width,height)</code> sets the canvas size.
+<code>rect(x,y,width,height,color)</code> draws a rectangle.
+Colors are numbered 0–7 in this prototype.</p>
+</details>
+
+<details>
+<summary>Conditions</summary>
+<pre>if(x > 100){
+  x = 0;
+}else{
+  x = x + 1;
+}</pre>
+</details>
+
+<details>
+<summary>Loops</summary>
+<pre>for(let i=0;i&lt;10;i=i+1){
+  rect(i*20,40,10,10,2);
+}</pre>
+<p>This prototype executes loops when the game starts.
+Animation loops will be added in a later version.</p>
+</details>
+
+<details>
+<summary>Current limitations</summary>
+<p>This version supports integer literals, variables,
+assignments, drawing, conditions and counting loops.
+Functions, sprites, arrays, events, floating-point literals,
+and animation callbacks are not implemented yet.
+It uses a fixed experimental opcode table.</p>
+</details>
+</section>
+
+<section>
+<h2>2. Write QG code</h2>
+<textarea id="source" spellcheck="false">canvas(240,320);
+let x=10;
+let y=20;
+let size=20;
+
+clear();
+
+for(let i=0;i<8;i=i+1){
+  rect(x+i*25,y+i*25,size,size,i%7+1);
+}
+
+if(x<100){
+  rect(100,20,40,20,2);
+}</textarea>
+<div class="row">
+<button onclick="compile()">Compile QG</button>
+<button onclick="downloadHTML()">Download HTML</button>
+<button onclick="copyBase39()">Copy Base39</button>
+<span id="status"></span>
+</div>
+</section>
+
+<section>
+<h2>3. Compiled size</h2>
+<div class="row">
+<div class="stat">Source characters<strong id="sourceSize">0</strong></div>
+<div class="stat">Binary bits<strong id="bitSize">0</strong></div>
+<div class="stat">Base39 digits<strong id="baseSize">0</strong></div>
+<div class="stat">QR capacity used<strong id="percent">0%</strong></div>
+</div>
+<p><small>QR capacity is compared against 4,296
+alphanumeric characters at version 40-L.
+This excludes any URL prefix or other QR metadata.</small></p>
+</section>
+
+<div class="grid">
+<section>
+<h2>4. Packed binary</h2>
+<pre id="binary"></pre>
+</section>
+<section>
+<h2>5. Base39 encoded data</h2>
+<pre id="encoded"></pre>
+</section>
+</div>
+
+<section>
+<h2>6. Generated HTML</h2>
+<p>This is the complete standalone HTML generated
+from the QG source.</p>
+<pre id="htmlOutput"></pre>
+</section>
+
+<section>
+<h2>7. Game preview</h2>
+<iframe id="preview" sandbox="allow-scripts"></iframe>
+</section>
+
+</main>
+
+<script>
+"use strict";
+
+const $=id=>document.getElementById(id);
+const ALPHABET="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ*+-";
+
+// Experimental prefix-free opcode table.
+// These codes are unique and none is a prefix of another.
+const OPS={
+  SET:"000",
+  ADD:"0010",
+  IF:"0011",
+  EQ:"0100",
+  MUL:"0101",
+  LT:"0110",
+  SUB:"01110",
+  GET:"01111",
+  FOR:"10000",
+  LEN:"10001",
+  RETURN:"10010",
+  RECT:"10011",
+  BLIT:"10100",
+  DIV:"101010",
+  MOD:"101011",
+  AND:"101100",
+  OR:"101101",
+  NOT:"101110",
+  FLOOR:"101111",
+  RAND:"110000",
+  PUSH:"110001",
+  CALL:"110010",
+  FUNC:"110011",
+  ARRAY:"110100",
+  TEXT:"110101",
+  CLEAR:"110110",
+  TOUCH:"110111",
+  INC:"111000",
+  NEG:"111001",
+  MIN:"111010",
+  MAX:"111011",
+  ABS:"111100",
+  BREAK:"1111010",
+  SPRDEF:"1111011",
+  CANVAS:"1111100",
+  SIN:"1111101",
+  SQRT:"1111110",
+  EXT:"1111111"
+};
+
+let lastHTML="";
+let lastBase39="";
+
+// ---------------------------
+// Lexer
+// ---------------------------
+function tokenize(source){
+  const re=/\s+|\/\/[^\n]*|\/\*[\s\S]*?\*\/|==|!=|<=|>=|[A-Za-z_$][\w$]*|\d+|[{}()[\],;+\-*\/%<>=]/gy;
+  const tokens=[];
+  let pos=0;
+  while(pos<source.length){
+    re.lastIndex=pos;
+    const m=re.exec(source);
+    if(!m)throw Error("Unexpected character at "+pos+
+      ": "+source.slice(pos,pos+20));
+    pos=re.lastIndex;
+    if(!/^\s|^\/\//.test(m[0])&&!m[0].startsWith("/*"))
+      tokens.push(m[0]);
+  }
+  tokens.push("<EOF>");
+  return tokens;
+}
+
+// ---------------------------
+// Parser
+// ---------------------------
+function Parser(tokens){
+  this.t=tokens;
+  this.i=0;
+}
+Parser.prototype.peek=function(){return this.t[this.i]};
+Parser.prototype.next=function(){return this.t[this.i++]};
+Parser.prototype.match=function(x){
+  if(this.peek()===x){this.i++;return true}
+  return false;
+};
+Parser.prototype.expect=function(x){
+  const got=this.next();
+  if(got!==x)throw Error("Expected '"+x+"', got '"+got+"'");
+};
+Parser.prototype.expression=function(min=0){
+  let token=this.next(),left;
+  if(token==="("){
+    left=this.expression();
+    this.expect(")");
+  }else if(token==="-"){
+    left={type:"neg",value:this.expression(7)};
+  }else if(/^\d+$/.test(token)){
+    left={type:"num",value:Number(token)};
+  }else if(/^[A-Za-z_$]/.test(token)&&token!=="<EOF>"){
+    left={type:"var",name:token};
+  }else{
+    throw Error("Invalid expression: "+token);
+  }
+  const precedence={
+    "==":1,"!=":1,
+    "<":2,">":2,"<=":2,">=":2,
+    "+":3,"-":3,
+    "*":4,"/":4,"%":4
+  };
+  while(precedence[this.peek()]>=min &&
+        precedence[this.peek()]!==undefined){
+    const op=this.next(),p=precedence[op];
+    left={
+      type:"bin",op,
+      left,right:this.expression(p+1)
+    };
+  }
+  return left;
+};
+Parser.prototype.block=function(){
+  this.expect("{");
+  const body=[];
+  while(this.peek()!=="}"){
+    if(this.peek()==="<EOF>")throw Error("Unclosed block");
+    body.push(this.statement());
+  }
+  this.expect("}");
+  return body;
+};
+Parser.prototype.assignment=function(declare=false){
+  const name=this.next();
+  if(!/^[A-Za-z_$][\w$]*$/.test(name))
+    throw Error("Invalid variable name: "+name);
+  this.expect("=");
+  return {type:"set",name,value:this.expression(),declare};
+};
+Parser.prototype.statement=function(){
+  const token=this.peek();
+
+  if(token==="let"){
+    this.next();
+    const node=this.assignment(true);
+    this.expect(";");
+    return node;
+  }
+
+  if(token==="if"){
+    this.next();
+    this.expect("(");
+    const test=this.expression();
+    this.expect(")");
+    const yes=this.block();
+    const no=this.match("else")?this.block():[];
+    return {type:"if",test,yes,no};
+  }
+
+  if(token==="for"){
+    this.next();
+    this.expect("(");
+    const declare=this.match("let");
+    const init=this.assignment(declare);
+    this.expect(";");
+    const test=this.expression();
+    this.expect(";");
+    const update=this.assignment();
+    this.expect(")");
+    return {type:"for",init,test,update,body:this.block()};
+  }
+
+  if(/^[A-Za-z_$]/.test(token)&&this.t[this.i+1]==="("){
+    const name=this.next();
+    this.expect("(");
+    const args=[];
+    if(this.peek()!==")"){
+      do{args.push(this.expression())}
+      while(this.match(","));
+    }
+    this.expect(")");
+    this.expect(";");
+    if(!["canvas","rect","clear"].includes(name))
+      throw Error("Unsupported built-in: "+name);
+    const counts={canvas:2,rect:5,clear:0};
+    if(args.length!==counts[name])
+      throw Error(name+" expects "+counts[name]+" arguments");
+    return {type:"call",name,args};
+  }
+
+  const node=this.assignment();
+  this.expect(";");
+  return node;
+};
+Parser.prototype.program=function(){
+  const body=[];
+  while(this.peek()!=="<EOF>")body.push(this.statement());
+  return body;
+};
+
+// ---------------------------
+// Bit writer
+// ---------------------------
+class BitWriter{
+  constructor(){this.bits=""}
+  write(s){this.bits+=s}
+  uint(n,width){
+    if(!Number.isSafeInteger(n)||n<0||n>=2**width)
+      throw Error("Value "+n+" does not fit in "+width+" bits");
+    this.write(n.toString(2).padStart(width,"0"));
+  }
+  varint(n){
+    if(!Number.isSafeInteger(n)||n<0)
+      throw Error("Invalid varint: "+n);
+    do{
+      const part=n%128;
+      n=Math.floor(n/128);
+      this.uint(part+(n?128:0),8);
+    }while(n);
+  }
+  block(fn){
+    const sub=new BitWriter();
+    fn(sub);
+    this.varint(sub.bits.length);
+    this.write(sub.bits);
+  }
+}
+
+function makeCompiler(){
+  const variables=new Map();
+  function slot(name){
+    if(!variables.has(name)){
+      if(variables.size>=64)throw Error("64-variable limit exceeded");
+      variables.set(name,variables.size);
+    }
+    return variables.get(name);
+  }
+  function expr(w,e){
+    if(e.type==="var"){
+      w.write("0");
+      w.uint(slot(e.name),6);
+    }else if(e.type==="num"){
+      if(e.value<=15){
+        w.write("10");
+        w.uint(e.value,4);
+      }else{
+        w.write("11110");
+        w.varint(e.value*2);
+      }
+    }else if(e.type==="neg"){
+      w.write("110");
+      w.write(OPS.NEG);
+      expr(w,e.value);
+    }else if(e.type==="bin"){
+      let op=e.op,a=e.left,b=e.right;
+      // Normalize greater-than into less-than.
+      if(op===">"){op="<";[a,b]=[b,a]}
+      if(op===">="){op="<";[a,b]=[b,a]}
+      if(op==="<="){op="<";[a,b]=[b,a]}
+      if(op==="!=")op="==";
+      const names={
+        "+":"ADD","-":"SUB","*":"MUL",
+        "/":"DIV","%":"MOD","<":"LT","==":"EQ"
+      };
+      w.write("110");
+      w.write(OPS[names[op]]);
+      if(["!=","<=",">="].includes(e.op)){
+        // These expressions require a logical NOT.
+        // Encode the NOT as the outer expression instead.
+        throw Error("Operator "+e.op+
+          " is not implemented in the binary prototype yet");
+      }
+      expr(w,a);
+      expr(w,b);
+    }else throw Error("Unknown expression type");
+  }
+  function stmt(w,s){
+    if(s.type==="set"){
+      w.write(OPS.SET);
+      w.uint(slot(s.name),6);
+      expr(w,s.value);
+    }else if(s.type==="call"){
+      w.write(OPS[s.name.toUpperCase()]);
+      for(const a of s.args)expr(w,a);
+    }else if(s.type==="if"){
+      w.write(OPS.IF);
+      expr(w,s.test);
+      w.block(b=>s.yes.forEach(x=>stmt(b,x)));
+      w.block(b=>s.no.forEach(x=>stmt(b,x)));
+    }else if(s.type==="for"){
+      w.write(OPS.FOR);
+      stmt(w,s.init);
+      expr(w,s.test);
+      w.block(b=>stmt(b,s.update));
+      w.block(b=>s.body.forEach(x=>stmt(b,x)));
+    }
+  }
+  return function(ast){
+    const w=new BitWriter();
+    w.uint(1,4); // Version 1
+    w.uint(0,4); // Flags
+    ast.forEach(s=>stmt(w,s));
+    return {bits:w.bits,variables};
+  };
+}
+
+// ---------------------------
+// Base39 encoding
+// ---------------------------
+// A leading sentinel 1 preserves the exact bit length,
+// including leading zero bits.
+function toBase39(bits){
+  let n=BigInt("0b1"+bits);
+  let out="";
+  while(n>0n){
+    out=ALPHABET[Number(n%39n)]+out;
+    n/=39n;
+  }
+  return out;
+}
+
+function fromBase39(encoded){
+  let n=0n;
+  for(const ch of encoded){
+    const digit=ALPHABET.indexOf(ch);
+    if(digit<0)throw Error("Invalid Base39 character");
+    n=n*39n+BigInt(digit);
+  }
+  const binary=n.toString(2);
+  if(binary[0]!=="1")throw Error("Invalid payload");
+  return binary.slice(1);
+}
+
+// ---------------------------
+// HTML generator
+// ---------------------------
+function generateHTML(ast){
+  const declared=new Set();
+  const lines=[];
+  const expression=e=>{
+    if(e.type==="num")return String(e.value);
+    if(e.type==="var")return e.name;
+    if(e.type==="neg")return "(-"+expression(e.value)+")";
+    if(e.type==="bin")
+      return "("+expression(e.left)+" "+e.op+" "+
+        expression(e.right)+")";
+    throw Error("Invalid expression");
+  };
+  function emit(body,indent="  "){
+    for(const s of body){
+      if(s.type==="set"){
+        if(s.declare&&!declared.has(s.name)){
+          declared.add(s.name);
+          lines.push(indent+"let "+s.name+"="+expression(s.value)+";");
+        }else{
+          lines.push(indent+s.name+"="+expression(s.value)+";");
+        }
+      }else if(s.type==="call"){
+        const args=s.args.map(expression).join(",");
+        lines.push(indent+s.name+"("+args+");");
+      }else if(s.type==="if"){
+        lines.push(indent+"if("+expression(s.test)+"){");
+        emit(s.yes,indent+"  ");
+        lines.push(indent+"}");
+        if(s.no.length){
+          lines.push(indent+"else{");
+          emit(s.no,indent+"  ");
+          lines.push(indent+"}");
+        }
+      }else if(s.type==="for"){
+        const i=s.init,u=s.update;
+        const prefix=i.declare&&!declared.has(i.name)?"let ":"";
+        if(prefix)declared.add(i.name);
+        lines.push(indent+"for("+prefix+i.name+"="+
+          expression(i.value)+";"+expression(s.test)+";"+
+          u.name+"="+expression(u.value)+"){");
+        emit(s.body,indent+"  ");
+        lines.push(indent+"}");
+      }
+    }
+  }
+  emit(ast);
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;background:#111;display:grid;place-items:center;min-height:100vh}
+canvas{max-width:100vw;max-height:100vh;object-fit:contain;image-rendering:pixelated}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const c=document.getElementById("game");
+const ctx=c.getContext("2d");
+const colors=["#000000","#ffffff","#ff5555","#55ff55",
+"#5599ff","#ffff55","#ff55ff","#55ffff"];
+function canvas(w,h){c.width=w;c.height=h}
+function clear(){ctx.clearRect(0,0,c.width,c.height)}
+function rect(x,y,w,h,color){
+ctx.fillStyle=colors[((color%colors.length)+colors.length)%colors.length];
+ctx.fillRect(x,y,w,h);
+}
+${lines.join("\n")}
+<\/script>
+</body>
+</html>`;
+}
+
+// ---------------------------
+// UI
+// ---------------------------
+function compile(){
+  $("status").textContent="";
+  $("status").className="";
+  try{
+    const source=$("source").value;
+    const ast=new Parser(tokenize(source)).program();
+    const result=makeCompiler()(ast);
+    const encoded=toBase39(result.bits);
+    const html=generateHTML(ast);
+
+    // Check that the Base39 string decodes exactly.
+    if(fromBase39(encoded)!==result.bits)
+      throw Error("Base39 round-trip failed");
+
+    lastHTML=html;
+    lastBase39=encoded;
+    $("sourceSize").textContent=source.length.toLocaleString();
+    $("bitSize").textContent=result.bits.length.toLocaleString();
+    $("baseSize").textContent=encoded.length.toLocaleString();
+    $("percent").textContent=(encoded.length/4296*100).toFixed(2)+"%";
+    $("binary").textContent=result.bits.match(/.{1,8}/g)?.join(" ")||"";
+    $("encoded").textContent=encoded;
+    $("htmlOutput").textContent=html;
+    $("preview").srcdoc=html;
+    $("status").textContent="Compiled successfully";
+    $("status").className="ok";
+  }catch(e){
+    $("status").textContent=e.message;
+    $("status").className="error";
+    lastHTML="";
+    lastBase39="";
+    $("preview").srcdoc="";
+    $("binary").textContent="";
+    $("encoded").textContent="";
+    $("htmlOutput").textContent="";
+    $("sourceSize").textContent=$("source").value.length;
+    $("bitSize").textContent="—";
+    $("baseSize").textContent="—";
+    $("percent").textContent="—";
+  }
+}
+function downloadHTML(){
+  if(!lastHTML)return alert("Compile first");
+  const blob=new Blob([lastHTML],{type:"text/html"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="qg-game.html";
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function copyBase39(){
+  if(!lastBase39)return alert("Compile first");
+  try{
+    await navigator.clipboard.writeText(lastBase39);
+    $("status").textContent="Base39 copied";
+  }catch{
+    alert("Clipboard unavailable. Select and copy the Base39 output.");
+  }
+}
+compile();
+</script>
+</body>
+</html>

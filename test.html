@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width,initial-scale=1">
+
+<title>QG Game</title>
+
+<style>
+
+    * {
+        box-sizing: border-box;
+    }
+
+    html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #182334;
+    }
+
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    canvas {
+        display: block;
+        max-width: 100vw;
+        max-height: 100vh;
+        object-fit: contain;
+        image-rendering: pixelated;
+        touch-action: none;
+    }
+
+    #error {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 15px;
+        background: #552222;
+        color: white;
+        font-family: monospace;
+        white-space: pre-wrap;
+        display: none;
+        overflow-wrap: anywhere;
+    }
+
+</style>
+
+</head>
+
+<body>
+
+<div id="error"></div>
+
+<script>
+
+window.addEventListener("error", function(e) {
+
+    const element = document.getElementById("error");
+
+    element.style.display = "block";
+
+    element.textContent =
+        e.message + "\nLine: " + e.lineno;
+
+});
+
+</script>
+
+<script>
+
+
+
+let canvasElement;
+let ctx;
+
+// ============================================
+// CANVAS
+// ============================================
+
+function canvas(w,h) {
+
+    canvasElement = document.createElement('canvas');
+
+    canvasElement.width = w;
+    canvasElement.height = h;
+
+    document.body.append(canvasElement);
+
+    ctx = canvasElement.getContext('2d');
+
+    ctx.imageSmoothingEnabled = false;
+
+    return canvasElement;
+}
+
+function clear(color='#fff') {
+
+    ctx.fillStyle = color;
+
+    ctx.fillRect(
+        0,0,
+        canvasElement.width,
+        canvasElement.height
+    );
+}
+
+function rect(x,y,w,h,color) {
+
+    ctx.fillStyle = color;
+
+    ctx.fillRect(x,y,w,h);
+}
+
+function text(s,x,y,color='#222',size=14) {
+
+    ctx.fillStyle = color;
+
+    ctx.font = size + 'px monospace';
+
+    ctx.fillText(s,x,y);
+}
+
+function frame(f) {
+
+    requestAnimationFrame(f);
+}
+
+// ============================================
+// POLYGONS
+// ============================================
+
+function poly(points,color) {
+
+    if(points.length < 3) return;
+
+    ctx.fillStyle = color;
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        points[0][0],
+        points[0][1]
+    );
+
+    for(let i=1;i<points.length;i++) {
+
+        ctx.lineTo(
+            points[i][0],
+            points[i][1]
+        );
+    }
+
+    ctx.closePath();
+    ctx.fill();
+}
+
+// ============================================
+// COLORS
+// ============================================
+
+function rgb(r,g,b) {
+
+    return 'rgb(' +
+        clamp(r,0,255) + ',' +
+        clamp(g,0,255) + ',' +
+        clamp(b,0,255) + ')';
+}
+
+function hsl(h,s,l) {
+
+    return 'hsl(' +
+        h + ',' +
+        clamp(s,0,100) + '%,' +
+        clamp(l,0,100) + '%)';
+}
+
+// ============================================
+// SPRITES
+// ============================================
+
+function packedSprite(w,h,bytes,p) {
+
+    if(p.length !== 8) {
+        throw Error('Invalid palette');
+    }
+
+    let pixels = [];
+
+    for(let i=0;i<w*h;i++) {
+
+        let b = i*3;
+        let v = 0;
+
+        for(let j=0;j<3;j++) {
+
+            v = v*2 + (
+                (
+                    bytes[(b+j)>>3] >>
+                    (7-((b+j)&7))
+                ) & 1
+            );
+        }
+
+        pixels.push(v);
+    }
+
+    return {w,h,p,pixels};
+}
+
+function blit(s,x,y,scale=1,flags=0) {
+
+    ctx.save();
+
+    ctx.translate(x,y);
+
+    let rotation = (flags>>2)&3;
+
+    ctx.translate(
+        s.w*scale/2,
+        s.h*scale/2
+    );
+
+    ctx.rotate(rotation*Math.PI/2);
+
+    ctx.scale(
+        flags&1 ? -1 : 1,
+        flags&2 ? -1 : 1
+    );
+
+    ctx.translate(
+        -s.w*scale/2,
+        -s.h*scale/2
+    );
+
+    for(let j=0;j<s.h;j++) {
+
+        for(let i=0;i<s.w;i++) {
+
+            let v = s.pixels[j*s.w+i];
+
+            if(v) {
+
+                ctx.fillStyle = s.p[v];
+
+                ctx.fillRect(
+                    i*scale,
+                    j*scale,
+                    scale,
+                    scale
+                );
+            }
+        }
+    }
+
+    ctx.restore();
+}
+
+function tile(s,x,y,n,m,scale=1,flags=0) {
+
+    for(let j=0;j<m;j++) {
+
+        for(let i=0;i<n;i++) {
+
+            blit(
+                s,
+                x+i*s.w*scale,
+                y+j*s.h*scale,
+                scale,
+                flags
+            );
+        }
+    }
+}
+
+// ============================================
+// INPUT
+// ============================================
+
+let pointerX = -Infinity;
+let pointerY = -Infinity;
+
+function touch(fn) {
+
+    canvasElement.style.touchAction = 'none';
+
+    canvasElement.addEventListener(
+        'pointerdown',
+        e => {
+
+            const r =
+                canvasElement.getBoundingClientRect();
+
+            pointerX =
+                (e.clientX-r.left) *
+                canvasElement.width/r.width;
+
+            pointerY =
+                (e.clientY-r.top) *
+                canvasElement.height/r.height;
+
+            fn(pointerX,pointerY);
+        }
+    );
+}
+
+function hit(x,y,w,h) {
+
+    return pointerX >= x &&
+           pointerX < x+w &&
+           pointerY >= y &&
+           pointerY < y+h;
+}
+
+function on(event,fn) {
+
+    window.addEventListener(event,fn);
+}
+
+// ============================================
+// SEEDED RANDOMNESS
+// ============================================
+
+let randomState = Date.now() >>> 0;
+
+function seed(n) {
+
+    randomState = n >>> 0;
+}
+
+function random() {
+
+    randomState = (
+        Math.imul(randomState,1664525)
+        + 1013904223
+    ) >>> 0;
+
+    return randomState / 4294967296;
+}
+
+function rand(min,max) {
+
+    return Math.floor(
+        random()*(max-min+1)
+    ) + min;
+}
+
+// ============================================
+// UTILITIES
+// ============================================
+
+function clamp(n,min,max) {
+
+    return Math.max(
+        min,
+        Math.min(max,n)
+    );
+}
+
+function len(a) {
+
+    return a.length;
+}
+
+function copy(a) {
+
+    return a.slice();
+}
+
+function remove(a,i) {
+
+    if(
+        !Number.isInteger(i) ||
+        i<0 ||
+        i>=a.length
+    ) {
+        return undefined;
+    }
+
+    return a.splice(i,1)[0];
+}
+
+function choose(a) {
+
+    if(!a.length) {
+        return undefined;
+    }
+
+    return a[rand(0,a.length-1)];
+}
+
+function shuffle(a) {
+
+    for(let i=a.length-1;i>0;i--) {
+
+        let j = rand(0,i);
+
+        [a[i],a[j]] = [a[j],a[i]];
+    }
+
+    return a;
+}
+
+// ============================================
+// SAVE AND LOAD
+// ============================================
+
+function save(data) {
+
+    if(!__qgStorageAvailable) {
+        return false;
+    }
+
+    try {
+
+        const encoded = JSON.stringify(data);
+
+        if(
+            encoded === undefined ||
+            encoded.length > 65536
+        ) {
+            return false;
+        }
+
+        window.parent.postMessage({
+            type:'QG_SAVE',
+            data:encoded
+        },__qgParentOrigin);
+
+        __qgSavedData = encoded;
+
+        return true;
+
+    } catch(e) {
+
+        return false;
+    }
+}
+
+function load() {
+
+    try {
+
+        return JSON.parse(__qgSavedData);
+
+    } catch(e) {
+
+        return null;
+    }
+}
+
+
+
+
+const __qgKey = "QG-SAVE-79c87f38f18bb91f95765c1aa4058066caa426afeda58d1f87437973c81f69a1";
+
+function save(data) {
+
+    try {
+
+        const encoded = JSON.stringify(data);
+
+        if (
+            encoded === undefined ||
+            encoded.length > 65536
+        ) {
+            return false;
+        }
+
+        localStorage.setItem(__qgKey, encoded);
+
+        return true;
+
+    } catch(e) {
+
+        return false;
+    }
+}
+
+function load() {
+
+    try {
+
+        return JSON.parse(
+            localStorage.getItem(__qgKey)
+        );
+
+    } catch(e) {
+
+        return null;
+    }
+}
+
+
+canvas ( 300 , 400 ) ; const _v0=[null, "#ffffff", "#5599ff", "#224488", "#ff9922", "#886644", "#443322", "#bb9977"]; const _v1={w:7,h:8,p:_v0,pixels:[0, 0, 0, 1, 0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 1, 2, 3, 2, 1, 0, 1, 2, 2, 3, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 0, 3, 0, 4, 0, 3, 0, 0, 0, 0, 4, 0, 0, 0]}; const _v2={w:7,h:7,p:_v0,pixels:[0, 0, 5, 5, 5, 0, 0, 0, 5, 7, 7, 7, 5, 0, 5, 7, 7, 6, 5, 7, 5, 5, 7, 6, 7, 7, 7, 5, 5, 7, 7, 7, 6, 7, 5, 0, 5, 7, 7, 7, 5, 0, 0, 0, 5, 5, 5, 0, 0]}; let _v3 = 150 ; let _v4 = [ ] ; let _v5 = [ ] ; let _v6 = 0 ; let _v7 = load ( ) ; let _v8 = false ; let _v9 = 0 ; if ( _v7 == null ) { _v7 = 0 ; } for ( let _v10 = 0 ; _v10 < 40 ; _v10 ++ ) { _v5 . push ( [ rand ( 0 , 300 ) , rand ( 0 , 400 ) ] ) ; } touch ( function ( _v11 , _v12 ) { if ( _v8 ) { _v4 = [ ] ; _v6 = 0 ; _v9 = 0 ; _v8 = false ; } _v3 = clamp ( _v11 , 14 , 286 ) ; } ) ; function _v13 ( _v14 ) { clear ( '#101020' ) ; for ( let _v10 = 0 ; _v10 < len ( _v5 ) ; _v10 ++ ) { let _v15 = _v5 [ _v10 ] ; rect ( _v15 [ 0 ] , _v15 [ 1 ] , 2 , 2 , '#778899' ) ; _v15 [ 1 ] = ( _v15 [ 1 ] + 1 ) % 400 ; } if ( ! _v8 ) { _v9 ++ ; if ( _v9 % clamp ( 40 - Math . floor ( _v6 / 3 ) , 8 , 40 ) == 0 ) { _v4 . push ( [ rand ( 0 , 272 ) , - 28 ] ) ; } for ( let _v10 = 0 ; _v10 < len ( _v4 ) ; _v10 ++ ) { let _v16 = _v4 [ _v10 ] ; _v16 [ 1 ] += 2 + _v6 / 15 ; if ( _v16 [ 1 ] > 400 ) { remove ( _v4 , _v10 ) ; _v10 -- ; _v6 ++ ; continue ; } if ( _v16 [ 1 ] + 28 > 350 && _v16 [ 1 ] < 382 && _v16 [ 0 ] + 28 > _v3 - 14 && _v16 [ 0 ] < _v3 + 14 ) { _v8 = true ; if ( _v6 > _v7 ) { _v7 = _v6 ; save ( _v7 ) ; } } } } for ( let _v10 = 0 ; _v10 < len ( _v4 ) ; _v10 ++ ) { blit ( _v2 , _v4 [ _v10 ] [ 0 ] , _v4 [ _v10 ] [ 1 ] , 4 ) ; } blit ( _v1 , _v3 - 14 , 350 , 4 ) ; text ( 'Score: ' + _v6 , 10 , 20 , 'white' ) ; text ( 'Best: ' + _v7 , 210 , 20 , 'white' ) ; if ( _v8 ) { rect ( 40 , 145 , 220 , 100 , '#222233' ) ; text ( 'GAME OVER' , 75 , 180 , 'white' , 24 ) ; text ( 'Tap to restart' , 90 , 220 , 'white' ) ; } frame ( _v13 ) ; } frame ( _v13 ) ;
+
+</script>
+
+</body>
+</html>

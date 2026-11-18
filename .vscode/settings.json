@@ -1,0 +1,55 @@
+{
+    "files.associations": {
+        "*.qg": "qg"
+    },
+    "[qg]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+    },
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            {
+                "scope": "keyword.control.qg",
+                "settings": {
+                    "foreground": "#C586C0"
+                }
+            },
+            {
+                "scope": "storage.type.qg",
+                "settings": {
+                    "foreground": "#569CD6"
+                }
+            },
+            {
+                "scope": "support.function.graphics.qg",
+                "settings": {
+                    "foreground": "#4EC9B0"
+                }
+            },
+            {
+                "scope": "support.function.input.qg",
+                "settings": {
+                    "foreground": "#FF9966"
+                }
+            },
+            {
+                "scope": "support.function.random.qg",
+                "settings": {
+                    "foreground": "#DCDCAA"
+                }
+            },
+            {
+                "scope": "support.function.storage.qg",
+                "settings": {
+                    "foreground": "#F48771"
+                }
+            },
+            {
+                "scope": "constant.numeric.sprite.qg",
+                "settings": {
+                    "foreground": "#B5CEA8"
+                }
+            }
+        ]
+    }
+}

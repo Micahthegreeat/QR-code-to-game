@@ -1,0 +1,107 @@
+{
+    "name": "QG",
+    "scopeName": "source.qg",
+    "patterns": [
+        {
+            "name": "comment.line.double-slash.qg",
+            "match": "//.*$"
+        },
+        {
+            "name": "comment.block.qg",
+            "begin": "/\\*",
+            "end": "\\*/"
+        },
+        {
+            "name": "string.quoted.single.qg",
+            "begin": "'",
+            "end": "'",
+            "patterns": [
+                {
+                    "name": "constant.character.escape.qg",
+                    "match": "\\\\."
+                }
+            ]
+        },
+        {
+            "name": "string.quoted.double.qg",
+            "begin": "\"",
+            "end": "\"",
+            "patterns": [
+                {
+                    "name": "constant.character.escape.qg",
+                    "match": "\\\\."
+                }
+            ]
+        },
+        {
+            "name": "meta.sprite.qg",
+            "begin": "\\b(sprite)\\s+([\\w$]+)\\s*\\(\\s*([\\w$]+)\\s*\\)\\s*\\{",
+            "beginCaptures": {
+                "1": {
+                    "name": "storage.type.qg"
+                },
+                "2": {
+                    "name": "entity.name.type.qg"
+                },
+                "3": {
+                    "name": "variable.other.qg"
+                }
+            },
+            "end": "\\}",
+            "patterns": [
+                {
+                    "name": "constant.numeric.sprite.qg",
+                    "match": "[0-7]+"
+                }
+            ]
+        },
+        {
+            "name": "keyword.control.qg",
+            "match": "\\b(if|else|while|for|return|break|continue)\\b"
+        },
+        {
+            "name": "storage.type.qg",
+            "match": "\\b(let|const|var|fn|sprite|palette|new)\\b"
+        },
+        {
+            "name": "constant.language.qg",
+            "match": "\\b(true|false|null|undefined)\\b"
+        },
+        {
+            "name": "support.function.graphics.qg",
+            "match": "\\b(canvas|blit|tile|clear|text|frame|rect|poly|rgb|hsl|packedSprite)\\b"
+        },
+        {
+            "name": "support.function.input.qg",
+            "match": "\\b(touch|hit|on)\\b"
+        },
+        {
+            "name": "support.function.random.qg",
+            "match": "\\b(rand|seed|random|choose|shuffle)\\b"
+        },
+        {
+            "name": "support.function.storage.qg",
+            "match": "\\b(save|load)\\b"
+        },
+        {
+            "name": "support.function.utility.qg",
+            "match": "\\b(clamp|len|copy|remove|setTimeout|requestAnimationFrame)\\b"
+        },
+        {
+            "name": "support.class.qg",
+            "match": "\\b(Math|document|window)\\b"
+        },
+        {
+            "name": "constant.numeric.qg",
+            "match": "\\b\\d+(?:\\.\\d+)?\\b|\\.\\d+"
+        },
+        {
+            "name": "entity.name.function.qg",
+            "match": "\\b[A-Za-z_$][\\w$]*(?=\\s*\\()"
+        },
+        {
+            "name": "keyword.operator.qg",
+            "match": "[+\\-*/%=<>!&|?:]+"
+        }
+    ]
+}

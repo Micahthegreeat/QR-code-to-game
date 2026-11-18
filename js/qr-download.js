@@ -25,7 +25,7 @@ function updateQRCode() {
     canvas.hidden = true;
     currentQRURL = "";
 
-    const url = getCompiledGameURL();
+    const url = getCompiledGameURL()?.toUpperCase();
 
     if (!url) {
         message.textContent = "Compile a game first.";
@@ -41,16 +41,7 @@ function updateQRCode() {
         // L is the lowest error correction level (~7%).
         const qr = qrcode(0, "L");
 
-        // Split lowercase URL prefix from uppercase Base39 payload.
-        const match = url.match(/^(.*\/)([0-9A-Z*+\-]+)$/);
-
-        if (match) {
-            qr.addData(match[1], "Byte");
-            qr.addData(match[2], "Alphanumeric");
-        } else {
-            qr.addData(url, "Byte");
-        }
-
+        qr.addData(url, "Alphanumeric");
         qr.make();
 
         const modules = qr.getModuleCount();
@@ -90,10 +81,7 @@ function updateQRCode() {
         set("qr-version", `${version} / 40`);
         set("qr-dimensions", `${modules} × ${modules}`);
         set("qr-characters", url.length);
-        set(
-            "qr-encoding",
-            match ? "Byte prefix + alphanumeric payload" : "Byte"
-        );
+        set("qr-encoding", "Alphanumeric");
 
         canvas.hidden = false;
         button.disabled = false;

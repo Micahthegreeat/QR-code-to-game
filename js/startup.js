@@ -1,41 +1,56 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", async () => {
-    const loaded = await window.initializeTextContent();
+    const path = window.location.pathname;
 
-    if (!loaded) {
-        return;
+    // Game routes should launch directly, without loading the editor.
+    if (/^\/[01]\/[^/]+\/?$/.test(path)) {
+        const route = parseGameRoute();
+
+        if (route) {
+            document.getElementById("studio").style.display = "none";
+            document.querySelector(".site-header").style.display = "none";
+
+            const player = document.getElementById("player-shell");
+            player.style.display = "block";
+
+            try {
+                await openGameRoute(route);
+            } catch (error) {
+                console.error("Game loading failed:", error);
+
+                document.getElementById("player-error").textContent =
+                    "Unable to load game: " + error.message;
+            }
+
+            return;
+        }
     }
 
-    // Preserve the compiler's existing click handler.
-    const previousCompile = $("compile").onclick;
+    // Normal editor page.
+    const loaded = await window.initializeTextContent();
 
-    $("compile").onclick = () => {
-        if (typeof previousCompile === "function") {
-            previousCompile();
-        }
+    if (!loaded) return;
 
-        updateGameLink();
-    };
+    const compileButton = document.getElementById("compile");
 
-    // Preserve the decompiler's existing click handler.
-    const previousDecode = $("decode").onclick;
+    if (compileButton) {
+        const originalCompile = compileButton.onclick;
 
-    $("decode").onclick = () => {
-        if (typeof previousDecode === "function") {
-            previousDecode();
-        }
+        compileButton.onclick = () => {
+            if (typeof originalCompile === "function") {
+                originalCompile();
+            }
 
-        updateGameLink();
-    };
+            if (typeof updateGameLink === "function") {
+                updateGameLink();
+            }
 
-    // Handle standalone game URLs.
-    const route = parseGameRoute();
+            if (typeof updateQRCode === "function") {
+                updateQRCode();
+            }
+        };
 
-    if (route) {
-        openGameRoute(route);
-    } else {
-        // The chess source is loaded before this runs.
-        $("compile").click();
+        compileButton.click();
     }
 });
